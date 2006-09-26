@@ -7,6 +7,8 @@ ERLC_FLAGS=+debug_info -W -o ebin/
 
 all: ${BEAM_FILES}
 
+.PHONY: info clean
+
 info:
 	@echo Beam files: ${BEAM_FILES}
 	@echo ERL files: ${ERL_FILES}
