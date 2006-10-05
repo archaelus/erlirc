@@ -7,7 +7,7 @@ ERLC_FLAGS=+debug_info -W -o ebin/
 
 all: ${BEAM_FILES}
 
-.PHONY: info clean
+.PHONY: info clean docs
 
 info:
 	@echo Beam files: ${BEAM_FILES}
@@ -19,3 +19,6 @@ clean:
 ebin/%.beam: src/%.erl
 	@echo $@: erlc ${ERLC_FLAGS} ${INCLUDE} $<
 	@erlc ${ERLC_FLAGS} ${INCLUDE} $<
+
+docs:
+	erl -noshell -run edoc_run application "'$(APP_NAME)'" '"."' '[{def,{vsn,"$(VSN)"}}]'
