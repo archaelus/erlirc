@@ -1,3 +1,5 @@
+APP_NAME=fixme
+VSN=0.1
 
 ERL_FILES=$(wildcard src/*.erl)
 BEAM_FILES=$(subst src/,ebin/,$(subst .erl,.beam,${ERL_FILES}))
