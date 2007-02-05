@@ -1,4 +1,4 @@
-APP_NAME=fixme
+APP_NAME=erlirc
 VSN=0.1
 
 ERL_FILES=$(wildcard src/*.erl)
