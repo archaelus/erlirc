@@ -44,10 +44,10 @@ xref: ${BEAM_FILES}
 	@(echo -e "xref:start(${APP_NAME}), io:fwrite(\"~n~nXref: ~p~n~n\", [xref:d(\"ebin/\")]), init:stop().\n" | erl $(CODEPATH) $(CODEPATH_JUNGERL))
 
 shell_args:
-	@(echo -ne "lists:map(fun(A) -> {A,application:start(A)} end, [${APP_DEPS}]).\napplication:start(erms)." | pbcopy)
+	@(echo -ne "lists:map(fun(A) -> {A,application:start(A)} end, [${APP_DEPS}]).\napplication:start(${APP_NAME})." | pbcopy)
 
 shell: ${BEAM_FILES} shell_args
-	erl ${NODE} -config priv/erms $(CODEPATH) -pz /Users/nem/projects/erlang/oserl/doc/examples $(CODEPATH_JUNGERL)
+	erl ${NODE} -config priv/${APP_NAME} $(CODEPATH) -pz /Users/nem/projects/erlang/oserl/doc/examples $(CODEPATH_JUNGERL)
 
 dialyzer.report: ${BEAM_FILES}
 	@dialyzer ${INCLUDE} -pa /Users/nem/projects/erlang/eunit/ebin -pa /Users/nem/projects/erlang/oserl/ebin -pa /Users/nem/projects/erlang/yaws/ebin -pa /Users/nem/projects/erlang/common_lib/ebin -c ebin
@@ -55,5 +55,5 @@ dialyzer.report: ${BEAM_FILES}
 releases/${VSN}/${APP_NAME}.boot: ${BEAM_FILES} releases/${VSN}/${APP_NAME}.rel ebin/${APP_NAME}app priv/${APP_NAME}.config
 	@(echo -e 'systools:make_script("releases/${VSN}/${APP_NAME}"), init:stop().' "\n" | erl $(CODEPATH) $(CODEPATH_JUNGERL))
 
-releases/${VSN}/${APP_NAME}.tar.gz: releases/${VSN}/erms.boot
+releases/${VSN}/${APP_NAME}.tar.gz: releases/${VSN}/${APP_NAME}.boot
 	@(echo -e 'systools:make_tar("releases/${VSN}/${APP_NAME}", [{path, ["lib/*/ebin"]}]), init:stop().' "\n" | erl $(CODEPATH) $(CODEPATH_JUNGERL))
