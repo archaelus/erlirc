@@ -1,0 +1,21 @@
+$Id: TODO,v 1.12 2003/11/18 14:54:33 dim Exp $
+
+Behaviours
+	Mood
+		Add some mood elements in config, and provides mood
+		switchers in the config. Then allow each behaviour to be
+		choosen on a mood base.
+
+	Prefix
+		To prefix the commands to be given to manderlbot. To be done on
+		a per channel base. Prefix example : '!'
+	Serializer
+		And we could have a behaviour:add() function to play with, and
+		we could even add behaviours from irc !
+
+Config
+	DTD
+	Behaviours lists, inheritance
+
+        Add a fortune include, allowing to manage separately
+        traditionnal fortune files

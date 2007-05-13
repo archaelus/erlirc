@@ -1,0 +1,104 @@
+<!doctype refentry PUBLIC "-//OASIS//DTD DocBook V4.1//EN">
+<refentry>
+  <refentryinfo>
+    <address>
+      <email>dim@tuxfamily.org</email>
+    </address>
+    <author>
+      <firstname>Dimitri</firstname>
+      <surname>Fontaine</surname>
+    </author>
+    <date>Décembre 2003</date>
+    <copyright>
+      <year>2003</year>
+      <holder>Dimitri Fontaine</holder>
+    </copyright>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>manderlbot</refentrytitle>
+    <manvolnum>1</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>manderlbot</refname>
+    <refpurpose>
+      An erlang IRC bot
+    </refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis>
+      <command>manderlbot</command>
+      <arg><option>-c</option> configuration file</arg>
+      <arg><option>-f</option> log file</arg>
+      <arg><option>-l</option> log level</arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>description</title>
+    <para>
+      <command>manderlbot</command> is an irc bot aimed at saying
+    idioties or doing some little searches on the internet. It is not
+    an eggdrop bot.
+    </para>
+
+    <para>
+      The default config file can be found in
+      <filename>/etc/manderlbot/config.xml</filename>. It can includes
+      some fortune files, wich you can provide in the same directory.
+      </para>
+
+  <refsect1>
+    <title>options</title>
+    <variablelist>
+      <varlistentry>
+        <term><option>-c</option></term>
+        <listitem>
+          <para>specifies the configuration file to use.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+	<term><option>-f</option></term>
+	<listitem>
+	  <para>specifies the log file to use.</para>
+	</listitem>
+      </varlistentry>
+      <varlistentry>
+	<term><option>-l</option></term>
+	<listitem>
+	  <para>specifies the log_level from wich you want manderlbot to log in the log_file. You can specify one of the following entries :
+	  </para>
+	<varlistentry>
+	  <term>
+	    <option>emerg</option>
+	    <option>alert</option>
+	    <option>crit</option>
+	    <option>error</option>
+	    <option>warn</option>
+	    <option>notice</option>
+	    <option>info</option>
+	    <option>debug</option>
+	  </term>
+	</varlistentry>
+	</listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1>
+    <title>Bugs</title>
+    <para> There should be none... :)
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Authors</title>
+    <para>
+      <command>manderlbot</command> was writen by Dimitri Fontaine
+      <email>dim@tuxfamily.org</email> and Nicolas Niclausse
+      <email>nico@niclux.org</email>.
+  </refsect1>
+  
+</refentry>

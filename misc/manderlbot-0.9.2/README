@@ -1,0 +1,27 @@
+This is manderlbot, an attempt to write an irc bot in erlang, with a XML
+based configuration.
+
+To use it, install erlang, then xmerl-0.15
+	http://www.erlang.org/user.html#xmerl-0.15
+
+On my system this means install the compiled files in
+	/usr/lib/erlang/lib/xmerl-0.15
+
+make install will provide you /usr/bin/manderlbot to start the bot.
+If you have installed the debian package, you don't have to make
+install.
+
+Once manderlbot is running, you can obtain a shell on the erlang VM it
+is running in, by launching another VM and connecting to the former.
+
+erl -setcookie mdb -sname control
+
+(control@node)1> 
+
+Then you hit ^G and connect to the manderlbot VM:
+User switch command
+ --> r manderlbot@node
+ --> c 3
+
+If you want to stop manderlbot, you can now type in
+(manderlbot@node)1> application:stop(manderlbot).

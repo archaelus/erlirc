@@ -1,0 +1,1027 @@
+{0}
+
+the most recent version of this document can be found at www.bircd.org/bewarep10.txt. email me if you have comments/feedback.
+- beware (bewareircd at xs4all dot nl)
+
+the text should be viewed in an ascii text viewer with line wrapping.
+
+the "beware" P10 protocol definition
+------------------------------------
+
+The aim of this document is to give a *complete* definition of a protocol which is compatible with existing implementations of the P10 protocol. it should allow writing a complete implementation, based on this document alone, without anything left uncertain.
+
+It is based on:
+
+- "Undernet P10 Protocol and Interface Specification" - http://web.mit.edu/klmitch/Sipb/devel/src/ircu2.10.11/doc/p10.html
+- "The P10 server-server protocol" by Carlo Wood - "http://www.xs4all.nl/~carlo17/irc/P10.html"
+- raw data sent by ircu
+- ircu source code
+- my own ideas about the protocol
+
+existing documentation about P10 is far from complete and leaves a lot of things uncertain.
+
+some definitions used in this document:
+
+beware: The nickname of the author of this document.
+byte: a unit of 8 bits of data.
+character: one byte, notated as a decimal number in the range 0-255 or a printable ascii character (example: 65, 'A')
+char: character.
+string: sequence of bytes
+parser: the implementation which receives and processes the stream
+generate: sending data which has not been received, as opposed to passing data on which has been received.
+
+TS: "TimeStamp". notation of a date+time. ascii decimal notation of the number of seconds, not counting leap seconds, since jan-1-1970, 00:00:00 UTC.
+
+"must", "must not","should", "may" are as described in rfc2119. interpret "disallowed" as "must not".
+
+hexadecimal numbers in this document use pascal notation: a $ prefix. the number of hex digits (nibbles) represents the size of the data; for example a byte it anything between $00 and $ff.
+
+"nick" without "num" or "numeric" refers to a nickname.
+
+======================================
+{1} THE STREAM OF DATA, LINES, LINE TERMINATION
+======================================
+P10 is a "text" protocol. it is human readable/writeable.
+
+CR: Carriage Return. character 13.
+LF: Line Feed. character 10.
+CRLF: <CR><LF>
+NULL: character 0.
+EOL: End Of Line (line termination)
+
+definition of the stream:
+<line><EOL><line><EOL> .... <garbage>
+
+- line termination (EOL):
+when sending, line termination may be be either <CRLF> or <LF>. it *must not* be anything else.
+
+the parser *must* accept <LF> and <CRLF> as line termination. it *may* accept any other sequence of <CR> and <LF> as EOL. it *must not* parse anything else as "line termination".
+
+- line: a sequence of characters, minimum length 1 byte, maximum length 510 bytes, *not* including the EOL. if a parser encounters a line with a length of 0 bytes, it must be silently ignored, and it must not do anything else. a line which is longer than the maximum length is disallowed.
+
+NULL, CR, and LF are disallowed in a line, any other character is allowed. 
+
+NULL character note: a parser can encounter a line which contains a NULL character. it *may* terminate the line at the first NULL character (remove anything after and including the first NULL character from the line).
+
+- garbage: any data between the last EOL and the end of the stream. it must not be parsed as a line.
+
+======================================
+{2} P10 BASE64
+======================================
+P10 protocol uses a base64 notation for numeric nicks, and for the IP parameter in the N token.
+it uses the following set of 64 characters, in the sequence from 0 to 63:
+
+ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789[]
+
+They are from now referred to as the P10 base64 characters.
+
+a P10 base64 string is a sequence of P10 base64 characters, with a minimum length of 1 character. it *must not* contain any other character.
+if the string has a length of more than one character, the string begins with the most significant character and ends with the least significant character.
+
+note P10 base64 strings are case significant.
+whenever this document mentions "base64", read it as "P10 base64".
+
+======================================
+{3} NUMERIC NICKS
+======================================
+{31} P10 uses "numeric nicks" to identify users and servers on the network, as opposed to names. the numeric is a base64 string or 2 concatenated base64 strings.
+
+- a server numeric is 2 base64 characters; there can be a maximum of 4096 servers on the network:
+AA (0), AB (1), ... ]] (4095).
+
+- a client numeric is a server numeric + the number of the client on that server. a total of 5 base64 chars. for example ABAAC is client #2 (AAC) on server #1 (AB). one server can have a maximum of 262144 clients.
+
+{32} a server has a "max client numeric", this is sent in SERVER messages. a client numeric on a server, ANDed with the max server numeric, must be unique. for example if server YY's max client numeric is YYA]] (4095), clients YYBXX and YCXX can't exist at the same time, doing this would cause a "numeric collision", which is in this a protocol violation. but such numerics which occupy the same "slot" are not identical - a message sent to user YYBXX in this example must not reach user YYCXX.
+
+{33} described above are "extended numerics", as used on undernet.
+
+short numerics:
+P10 short numerics uses 1 char for server numerics, allowing 64 servers on the net, and a 3 chars for client numerics: server numeric + 2 characters for the client on that server, allowing 4096 clients on one server.
+
+SS = extended numerics, server.
+SSCCC = extended numerics, client
+S = short numerics server
+SCC = short numerics client.
+
+in any example numeric with S and C, interpret "S" as a character of the server number, "C" as the client on the server.
+
+{34} i describe 2 different standards which are not compatible with each other:
+
+ "undernet" P10: extended numerics only.
+the P10 protocol as used on undernet, and probably other networks, such as quakenet.
+one *must* parse and send extended numerics. one *may* parse short numerics. one *must not* generate short numerics.
+
+* "general purpose" P10: mixed short/extended numerics:
+one must parse both short and extended numerics, and may generate both short and extended numerics.
+this also implies that any numeric which is ASACC or AS may be sent as short numeric.
+
+- if one can parse short numerics, it *must* consider short numeric SCC and extended numeric ASACC, and also short numeric S and extended numeric AS, as being equivalent; both can identify the same thing.
+
+- an implementation complies with both standards, if it can parse short numerics and extended numerics, and generates only extended numerics. this is true for undernet-ircu (version 2.10.10, 2.10.11), and beware ircd version 1.4.0 and later.
+
+{35} note: universal-ircu can send 4 character numerics (SCCC). this is *not* valid according to this protocol definition, one *must not* send them. right now, one *may* parse them, if they are translated to ASCCC. doing this allows a P10 implementation to link to universal. this may change later, 4 char numerics may later be used for something different, such as services.
+
+{36} note: an implementation can be or not be transparent to numerics - sending them as it receives them, preserving short/extended. ircu is transparent to numerics. this means it can't be between something which sends short numerics, and something which can't parse short numerics.
+
+======================================
+{4} SYNTAX OF A LINE
+======================================
+
+- space is character 32 ($20)
+
+the source, command, and parameters, are separated by spaces.
+
+<source> <command> [<parameters>]
+
+- one must send only the short command token. one may parse both short and long command token, and if one does, they must be considered equivalent; for example N = NICK. for example if i say "receives a NICK line" it may actually be a N token.
+
+- command tokens are uppercase. one must not send lowercase command tokens. one may parse them.
+
+- if source begins with a colon, it (except for the colon) is the name. otherwise, it is a numeric. a P10 implementation must only send lines with a numeric source prefix.
+
+- if the source does not exist: if the command is SQUIT or KILL (or short token), the line must be parsed anyway, with the directly linked server from which the message came as the source. otherwise the line must be ignored.
+
+- if the source exists but the message comes from the wrong direction, it must be ignored.
+
+- a line may have up to 15 parameters. parameters are separated by spaces.
+
+- the last parameter may be prefixed by a colon; this allows the last parameter to have spaces, or to have a length of 0 characters:
+<source> <command> <param1> <paramN> :<last parameter>
+a parser must be able to parse lines with colon prefixed last parameter, and without. for example parameters "a b c" and "a b :c" are equivalent.
+
+======================================
+{5} COMMAND TOKEN TABLE
+======================================
+AC	ACCOUNT
+AD	ADMIN
+LL	ASLL
+A	AWAY
+B	BURST
+CM	CLEARMODE
+CLOSE	CLOSE
+CN	CNOTICE
+CO	CONNECT
+CP	CPRIVMSG
+C	CREATE
+DE	DESTRUCT
+DS	DESYNCH
+DIE	DIE
+DNS	DNS
+EB	END_OF_BURST
+EA	EOB_ACK
+Y	ERROR
+GET	GET
+GL	GLINE
+HASH	HASH
+HELP	HELP
+F	INFO
+I	INVITE
+ISON	ISON
+J	JOIN
+JU	JUPE
+K	KICK
+D	KILL
+LI	LINKS
+LIST	LIST
+LU	LUSERS
+MAP	MAP
+M	MODE
+MO	MOTD
+E	NAMES
+N	NICK
+O	NOTICE
+OPER	OPER
+OM	OPMODE
+L	PART
+PA	PASS
+G	PING
+Z	PONG
+POST	POST
+P	PRIVMSG
+PRIVS	PRIVS
+PROTO	PROTO
+Q	QUIT
+REHASH	REHASH
+RESET	RESET
+RESTART	RESTART
+RI	RPING
+RO	RPONG
+S	SERVER
+SET	SET
+SE	SETTIME
+U	SILENCE
+SQ	SQUIT
+R	STATS
+TI	TIME
+T	TOPIC
+TR	TRACE
+UP	UPING
+USER	USER
+USERHOST USERHOST
+USERIP	USERIP
+V	VERSION
+WC	WALLCHOPS
+WA	WALLOPS
+WU	WALLUSERS
+WV	WALLVOICES
+H	WHO
+W	WHOIS
+X	WHOWAS
+SN	SVSNICK
+SJ	SVSJOIN
+
+======================================
+{6} MISC
+======================================
+
+{61} *** BOOT TIMESTAMP
+
+the boot timestamp can be seen as the age of the net/net fragment. a
+server sets the boot timestamp to "now" when it starts. if a boot TS
+in a received SERVER or S message is younger than OLDEST_TS
+(780000000), and older than the existing boot timestamp, the existing
+boot timestamp is overwritten with the received boot timestamp. the
+boot timestamp can be used for making decicions.
+
+
+{62} *** LINK TIMESTAMP
+
+both ends of a link have the same link timestamp for that link: it is
+the link timestamp parameter in the SERVER message sent from the
+accepting server to the connecting server. when a server link is
+established, one of the two servers may adjust its clock so that the
+link timestamp of the received SERVER message becomes "now". it does
+so if it does not have RELIABLE_CLOCK set, if the received boot
+timestamp is older than the existing boot timestamp, or if the
+received boot timestamp is equal to the existing boot timestamp and
+the server initiated the connection.
+
+{63} *** SERVER COLLISION
+
+if a server receives a SERVER or S message and the name or numeric of
+the new server already exists, there is a server name/numeric
+collision, this needs to be solved by breaking a link.  An
+implementation which will not be hub (such as services) doen not need
+to support this at all.
+
+what do so when a server collision happens:
+
+- if there is a name or numeric collision with the local server (myself) or with any U:lined (services) server, close the direct connection to the newly introduced server.
+
+- if there's an existing server with the same name, but the numerics differ. or if theres an existing server with the same numeric but the names differ, remove the newly introduced server.
+
+- if the newly introduced server is a direct connection and has an older or equal link TS than the existing link, close the new connection.
+
+- if the newly introduced server is a direct connection, remove the existing server (ghost) and mark the direct connection of the new server as "caused ghost"
+
+- if the direct connection of the newly introduced server is marked as "caused ghost", remove the existing server (ghost loop)
+
+??? the ghost/ghost loop is not entirely clear to me; when testing, a ghost loop (w/o a *real* ghost) could break every server link in the loop, ircu prevents this with another check which is not documented and which is impossible to understand in the source, and which is not documented in carlo's specification.
+
+if none of the above criteria matched, break the second youngest link.
+
+{631} second youngest link. the detailed explanation. (thanks carlo)
+why the second youngest link: think of this situation, net split, 2 net fragments: A-B-C-D and E-F-G-H. the currently existing links are old/good links (such as between hubs). 2 opers independently make a link. one tries to link A to H, the other tries to D to E:
+
+A-B-C-D
+|     |
+H-G-F-E
+
+the new link/SERVER message A-H propagates from A to D and from H to E. the new link D-E propagates from D to A and from E to H. somewhere in the middle, on servers B/C and G/F there will be a collision. but thats not a good place to break the link, either the link A-H or D-E needs to be broken, and in both B/C and G/F the same decision must to be made.
+
+more optimised ways to get the same result are possible but i think this explanation leaves no doubt.
+
+there is a "loop". the path between the 2 colliding servers. for example servers ..A-B-C-D-A.. in this case, there's 4 links in the loop. this includes the newly introduced server which caused the loop. to get the second youngest link: sort the links by link TimeStamp from latest to earliest. get the TS of the second link. from any/all links with that TS, get the link which has the greatest server name (sorted alphabetically). if multiple links have the same greatest server name, get the link which has the other server name be the greatest.
+
+example 1: loop: A-B/103 B-C/101 C-D/102 D-A/104. second youngest link is A-B.
+example 2: loop: A-B/101 B-C/101 C-D/101 D-A/101. second youngest link is C-D.
+
+one breaks the link by SQUIT'ing the server on the remote end of the link.
+
+{64} *** NET BURST
+
+first the connection is established by sending a PASS message, and a SERVER message. one may send "PING" messages, and one must reply them with proper "PONG" messages (in long/"non P10" format). one *must not* send anything else in this stage. one *may* ignore other messages on the receiving end, such as any status notices.
+
+when a server link is established, a netburst is sent to tell the other end of the link about the complete network state. the server which initiates the connection should wait until it has received the SERVER message from the accepting server, before it sends the netburst. 
+
+the netburst contains the following messages, it must be in this sequence:
+
+- servers: a S message for all servers on the net. before a S message for a given server is sent, a S message for any server in front of that server must already be sent. this can be implemented by first sending S messages for all servers with hopcount 1, then for all servers with hopcount 2, and so on.
+
+- G-lines and jupes with lastmod TS are sent.
+
+- clients: N messages for all clients/users are sent.
+
+- channels: B messages for all channels are sent.
+
+- end of burst: a EB message is sent to let the other end know it has received the complete burst.
+
+- the server must send a EA when it receives the EB from the other server.
+
+{65} *** NICK COLLISION (clients)
+
+in case of a nick collision (caused by an incoming N message, when an existing user has the nick)
+
+- both users are killed if their TS (last nick change) is equal
+- the user with the higher TS is killed if the user@host are different
+- the user with the lower TS is killed if the user@host are equal
+
+since the target of the kill messages is the numeric, it is safe to send them in any needed direction, no risk of killing the wrong user.
+
+{66} *** NAMES
+
+- a dot in a client nick name is disallowed.
+
+- a server name must have atleast one dot.
+
+this makes it impossible to have a client and server name collide, and makes it obvious from the name if it is a server or client.
+
+{67} *** LOCAL CHANNELS
+
+local channel names (starting with &) are disallowed in in P10 protocol, being a protocol between servers. one must take care to not send any messages about local channels to server links, and to not accept them when parsing messages.
+
+{68} *** account host hiding
+
+undernet and quakenet use account host hiding, an ircu2.10.11+ feature: if a user has the account set (read about ACCOUNT command), and mode +x set, the user's host, as it appears, is changed to "accountname.suffix" where suffix can be something like "users.networkname.org". an example of an accountname hidden host is "beware.users.undernet.org". note that ircu does not allow unsetting mode +x when it is set, and also does not accept it from server links/remote users.
+
+======================================
+{7} - SYNTAX OF COMMANDS
+======================================
+
+- note: if the last param of a command may have spaces - it is a fullname, reason, or "text" of any kind - the parser *must* use the last parameter of the received message, not a fixed param number. this allows room for inserting new parameters in the future. a fully compliant parser parses both "SSCCC P #channel :text" and "SSCCC P #channel 0 :text" correctly. the extra inserted parameters which are not described by the protocol, if any, may be ignored.
+
+with parameter number -1 i mean the last param, -2 is the param before the last param, etc. room for inserting future parameters w/o breaking a compliant parser is between the last parameter with positive number (counted from start) and first parameter with negative number (counted from end).
+
+- if parameter 0 is mentioned, it is the source of the message. if it is not mentioned, the source is obvious.
+
+- "remote request" means servers relay the message to the "target server", when the message reaches the target server it will take appropriate action (sending a reply to the source user)
+
+(mention beware topicburst syntax, which one *may* implement, safely w/o breaking ircu or asuka - asuka has it implemented)
+
+--------------------------
+{7AC} *** ACCOUNT (ircu2.10.11)
+
+1 <target user numeric>
+2 <account name>
+
+sets a user's account name. they are sent by a service which supports ACCOUNT when someone logs in to it. if a user's account name field is set, the ircd knows the user is "logged in", and can have a "is logged in as" line in the whois reply. it can be set exactly once for a user; it can't be changed or unset.
+
+- account messages with an account name which is longer than the maximum (12 on undernet) are a protocol violation, they are not applied to the user.
+
+- the source of an account message may be any server, but not a user.
+
+--------------------------
+{7AD} *** ADMIN
+
+1 <target server numeric>
+
+remote administrative info request.
+
+--------------------------
+{7LL} *** ASLL (ircu2.10.11??)
+
+1 <server name mask>
+2 <target server num>
+
+remote AsLL (asymmetric link latency) request. 
+
+the server name mask is as the client entered it
+
+--------------------------
+{7A} *** AWAY
+
+-1 [<away reason>]
+
+a user can be marked as no longer away by having no away reason parameter, or with an away reason parameter of zero lenth. without the parameter is preferred.
+
+--------------------------
+{7B} *** BURST
+
+1 <channel>
+2 <timestamp>
+3+ [<modes> [<mode extra parameters>]] [<users>] [<bans>]
+
+the first 2 parameters are always the channel name and TS. the others are optional and may or may not exist. a parser may be able to parse modes, users, and bans in any sequence.
+
+rules for generating a B message: there may be at most one <modes> parameter (and it's extra parameters), and it must be before any users or bans. there may be at most one <users> parameter and it must be after any modes and before any bans. there may be at most one <bans> parameter and it must be the last parameter of the B message.
+
+- if a B message is parsed, the TS is compared with the TS of the existing channel.
+
+if incoming TS is older than the existing TS, all modes/ops/voices/bans on the existing channel are cleared before adding the new items of the burst to the channel. the topic and invites should be cleared as well.
+
+if the existing TS is older than the incoming TS, all modes/ops/voices/bans from the B message are ignored and are not propagared, only the users.
+
+if the timestamps are equal, the modes/bans/etc of the B are merged with the existing modes. if the incoming modes has a limit/ key and the existing modes has a limit/key, the greater one overrules ("a < b")
+
+- <modes> is a parameter of which the first character is a +, it is parsed as a channel mode change; there can be extra parameters after the mode parameter for key and limit
+
+- <bans> parameter: the first character is a %, then a space separated list of bans.
+
+- <users> parameter has no prefix char. it is a comma separated list, where each entry is either <nicknum> or <nicknum>:<modes>. if the colon+modes is present, it defines membership modes which apply to that entry, and to all following entries until there's another entry which defines modes. the modes paramer contains the membership mode chars ("o" for ops, etc). for sending, it must have the modes from high priority to low priority - "ov" is valid, "vo" is not.
+
+note that ircu2.10.12 will have "op levels", which are a number at the end of the membership modes string (???)
+
+in a generated burst message, the users must be sorted by the modes: first users w/o modes, then users with voice, then with op, then with op+voice: num,num:v,num:o,num:ov
+
+example B message:
+A0 B #channel 1056560707 +ntslk 10 key A0AAB,A0AAC,ABAAA:v,ABAAB:o :%*!*@banned.host *!another@ban
+
+--------------------------
+{7CM} *** CLEARMODE (ircu2.10.11)
+
+1 <channel>
+2 <chars>
+
+the channel modes which are in the chars parameter, are cleared. also, "o" clears all ops, "b" clears all bans, etc.
+if the chars parameter is empty, it does not clear any modes (invalid). this differs from the client parser for clearmode, which fills in a default set of mode chars.
+
+--------------------------
+*** CNOTICE CPRIVMSG
+
+send private message or notice to user in channel where you have op or voice, to bypass target limiting.
+note that they have short tokens in the table, but ircu never sends them on server-server links, instead it sends normal PRIVMSG/NOTICE.
+
+--------------------------
+{7CO} *** CONNECT
+1 <server name/mask to connect to>
+2 <port>
+3 <target server numeric>
+
+the message is sent to the target server.
+if the port parameter is 0, the target server must use the port in the C:line or the default port.
+
+--------------------------
+{7C} *** CREATE
+
+1 <channels>
+2 <creationtime>
+
+user creates channel - is the first to join and gets op
+
+the <channels> parameter may be a comma separated list. ircu sends them.
+
+if parsing a CREATE message and the channel already exists:
+
+- if the received TS is younger than the existing channel's TS, or more than TS_LAG_TIME (1 hour) old, send a deop back upstream with the existing channel's TS, and propagate the message as a JOIN
+
+- if the existing channel TS is younger, update the channel's TS. a deop for the existing user will soon be received.
+
+- if the existing channel TS is equal to MAGIC_REMOTE_JOIN_TS, update the channel's TS
+
+- if both TS are equal, both users keep op.
+
+if a JOIN or CREATE message is sent/propagated, it always has the local server's idea of the channel's creationtime after parsing the received message; it may be different from the received TS parameter; it is if a CREATE causes a deop bounce
+
+--------------------------
+{7DE} *** DESTRUCT (ircu2.10.12)
+
+1 <channel>
+2 <TS>
+
+destruct is going to be used in 2.10.12 where a channel is not destroyed when the last user leaves.
+they are not sent earlier versions. current implementation is propagating the message to all other servers if the channel does not exist, and ignore if the channel exists (has users)
+
+--------------------------
+{7DS} *** DESYNCH
+
+-1 <message>
+
+desynch wallops. broadcasted to all servers on the net. they are used as "global server notice". ircu sends them as wallops to all users with mode +g set.
+
+--------------------------
+{7EB} {7EA} *** END_OF_BURST END_OF_BURST_ACK
+
+no parameters
+
+the END_OF_BURST message (EB token) must be the last message of a netburst. if it is received from a directly connected server which has not ended burst yet, the end of burst must be acknowledged by sending an EOB_ACK (EA token) message back.
+
+--------------------------
+{7Y} *** ERROR
+
+can be sent to a server link before it's closed, to tell about the reason for closing the link. one must send either this, or a SQUIT message.
+
+--------------------------
+{7GL} *** GLINE
+
+from U:lined server:
+
+1 <target>
+2 [!][-|+]<mask>
+3 <duration>
+-1 <reason>
+
+from oper or normal server:
+
+1 <target>
+2 [!][-|+]<mask>
+3 <duration>
+4 <last modification TS>
+-1 <reason>
+
+- <target> is either * (broadcast to all servers) or a server numeric.
+
+- for the <mask> parameter, the presence of the ! prefix means "force"; longer duration and wider mask possible. + means add/activate, - means remove/deactivate.
+
+- a G-line can be sent by an U:lined server, or by anything else. G-lines *not* sent by an U:lined server must have a "last modification time". it is used for proper resynch on burst:
+any global G-lines with a last modification time are sent on burst; on parsing, an incoming G-lines with an earlier or equal lastmod time as the existing G-line is ignored. this is why those G-lines are deacticated rather than removed.
+
+- each server which receives a G-line is responsible for killing it's own clients, and generating QUIT messages for them.
+
+- mask may be a user@host mask, or a channel name. in the later case (mask starts with a # or &) it is a "BADCHAN". a BADCHAN prevents users from joining a channel with the same name (or matching, depending on the implementation)
+
+--------------------------
+{7F} *** INFO
+1 <target server numeric>
+
+remote "info" request
+
+--------------------------
+{7I} *** INVITE
+
+1 <target nick>
+2 <channel>
+
+- note that the target is a nickname, not a numeric.
+
+--------------------------
+{7J} *** JOIN
+1 <channel>
+2 [<creationtime>]
+
+- the <channel> parameter must not be a comma separated list.
+
+- the channel parameter may be "0", this means "leave all channels".
+
+- the creationtime parameter must be present if the channel parameter is not 0.
+
+- if the channel is created because of a JOIN, the channel's TS is set to the creationtime parameter. if the TS parameter is 0 or absent, ircu sets the channel TS to MAGIC_REMOTE_JOIN_TS, defined as 1270080000. JOIN messages w/o TS may be sent by ircu2.10.10 and earlier. JOIN messages for not existing channels can exist because of a JOIN crossing a PART which destroyed the channel.
+
+--------------------------
+{7JU} *** JUPE
+
+1 <target>
+2 [!][-|+]<server>
+3 <duration>
+4 <last modification TS>
+-1 <reason>
+
+JUPE prevents servers from connecting.
+
+- <target> is either * (broadcast to all servers) or a server numeric.
+
+- for the <mask> parameter, + means add/activate, - means remove/deactivate.
+
+- the "last modification time" is used for proper resynch on burst:
+all global jupes are sent on burst; on parsing, an incoming jupe with an earlier or equal lastmod time as the existing jupe is ignored. this is why global jupes are deacticated rather than removed.
+
+- if a global jupe is received, any local jupe for the same server is removed before the global jupe is added.
+
+--------------------------
+{7K} *** KICK
+1 <channel>
+2 <target numeric>
+-1 <reason>
+
+The target's server must send a PART back upstream. this has to do with ircu's "zombie" behavior:
+
+in ircu, if a user is kicked from the channel and the channel didn't become empty because of it, and the kick didn't come from the direction of the target's server, the user appears removed to other users, but internally the user stays in the channel as "zombie". it is then really removed when the "acknowledgement" PART is received. one reason for this is so mode changes done by the kick target just before he got kicked can apply because the server knows the user was in the channel with ops.
+
+--------------------------
+{7D} *** KILL
+
+1 <target numeric>
+-1 <info>
+
+the info parameter should be in the format "path (reason)". when the kill message is generated, the path starts as the source host!nick - the nick is what appears in a kill quit reason like "Killed (nick (reason))". when a server receives a kill message from a server link, it adds the name of the directly linked server where the message came from, and a !, to the begin of the path. so the path goes like "host!nick", "server1!host!nick" (on server 2), "server2!server1!host!nick" (on server 3), and so on. if a kill is generated by serivces, the "source host" can be for example the services server name.
+
+--------------------------
+{7LI} *** LINKS
+1 <target server numeric>
+2 <server mask>
+
+remote "links" request.
+
+--------------------------
+{7LU} *** LUSERS
+1 <dummy param>
+2 <target server numeric>
+
+remote "lusers" request
+
+the dummy parameter is passed on to the next server as is. in ircu it does nothing. on other ircd's (ircnet) it is a kind of "server name mask" parameter.
+
+--------------------------
+{7M} *** MODE
+
+there are 2 kinds of mode messages: those which change user modes, and those which change channel modes.
+
+*** user mode change:
+
+1 <target nick>
+2+ <mode change>
+
+the target parameter is a nickname (not a numeric). ircu requires the source prefix and the target to be the same user. source may also not be a server.
+
+*** channel mode change:
+
+1 <channel>
+2+ <mode change>
+-1 [<TS>]
+
+TS parameter:
+
+a channel mode change may have an extra parameter, the channel creationtime. on receiving: 
+- if the message has no TS, or TS = 0, or the TS equals the existing channel creationtime, the message is parsed always, and the existing TS is unchanged.
+
+- if it is present and younger than the existing channel creationtime, the server bounces the mode (sends a cancelling mode back upstream with the existing channel creationtime).
+
+- if the received TS is present and older than the existing creationtime, the mode is parsed and the existing creationtime is overwritten.
+
+--------------------------
+{7MO} *** MOTD
+1 <target server numeric>
+
+remote "motd" request
+
+--------------------------
+{7E} *** NAMES
+1 <channel>
+2 <target server numeric>
+
+remote "names" request
+
+--------------------------
+{7N} *** NICK
+
+nick can be used for 2 different purposes:
+
+** for introducing a new user:
+
+1 <nickname>
+2 <hops>
+3 <TS>
+4 <userid>
+5 <host>
+6 [<+modes>]
+7+ [<mode parameters>]
+-3 <base64 IP>
+-2 <numeric>
+-1 <fullname>
+
+- the source is the *server* which introduces the user.
+
+- the hops parameter is incremented before relaying the message to other servers; the first time the message is sent (by the source server), hops is equal to "1".
+
+- the TS is when the client last changed nick (also counting when the client connected)
+
+- the modes parameter (6) is optional. its presence can be detected by checking the first char of param 6 being a +.
+
+- the modes can have extra parameters, which then are parameters 7, 8, etc. they can only exist if the modes parameter is present.
+known modes with parameters are: 
+
++r, parameter is account name (ircu2.10.11)
++h, parameter is virtual user@host (asuka)
+
+the modes with parameters must only be used in the above mentioned sequence, for compatibility with implementations which support +r but dont support +h (or use +h for something different)
+
+- the IP is the binary 32 bits network order IP of the user, represented using 6 base64 characters. for example 192.168.0.1 -> $c0a80001 -> DAqAAB.
+
+in the future one can encounter an IP parameter in a different format, it will then have a different length. for example for IPv6. the format is unknown(???). a parser should deal with them somehow, such truncating them to 6 chars, and not crash.
+
+- the numeric is the numeric of the new client, SSCCC format, the "SS" Part of the numeric must be the same as the source numeric.
+
+** an existing user changing nick:
+
+1 <new nick>
+2 <TS>
+
+- the source is the user who changes nick.
+
+- the TS is when the client last changed nick (also counting when the client connected)
+
+if there is already a user with the new nick and it is not the source of the N message, there is a nick collision.
+
+--------------------------
+{7OM} *** OPMODE  (ircu2.10.11)
+
+same parameters as MODE for channel mode changes
+
+OPMODE forces channel mode changes; they are not bounced or denied.
+
+the source should be an IRC operator.
+
+--------------------------
+{7L} *** PART
+
+1 <channels>
+-1 <reason>
+
+- the <channels> parameter may be a comma separated list
+- note about blocking a part if the user isn't in the channel: it must be propagated anyway if the user is in the channel as "zombie". a compatible implementation w/o zombies can be done by propagating them always.
+
+--------------------------
+{7G} *** PING
+
+1 <source>
+2 [<target server name>]
+
+if the target server parameter is present, the ping is forwarded to the target server.
+if the ping has reached the target server or the target server param is not present, the ping is replied with a pong.
+
+the source parameter may be arbitrary text, it will be in the pong as is. but to have the reply of a remote ping come back properly, it needs to be the source.
+
+--------------------------
+{7Z} *** PONG
+
+1 <source numeric of pong>
+2 <target>
+
+the target parameter is copied from the source parameter of the ping
+
+--------------------------
+{7P} {7O} *** PRIVMSG NOTICE
+
+1 <target>
+-1 <message>
+
+send normal message, privmsg or notice.
+
+- the target must not be a comma separated list.
+
+- target can be: numeric, nick@server, #channel, $servermask.
+
+- nick@server on server-server protocol is how the target knows the source used "nick@server" and not just "nick" - for sending passwords to services.
+
+- #hostmask target (rfc1459) is not supported by ircu anymore (disallowed)
+
+the message should be routed only to targets which need it: in case of a message to one user, it is sent only to the direction of the target user. a message to a channel is sent only to the directions which have non +d users in the channel.
+
+--------------------------
+*** PRIVS (???)
+
+--------------------------
+*** PROTO (???)
+
+--------------------------
+{7Q} *** QUIT
+
+-1 <reason>
+
+a user removing itself from the network.
+
+--------------------------
+{7RI} *** RPING
+
+there are 2 kinds of RPING messages
+
+** request to do RPING between 2 remote servers, traveling from an oper to the start server.
+
+0 <requesting oper>
+1 <pinged server name mask>
+2 <target (start) server numeric>
+3 <optional remark>
+
+** RPING from start server to pinged server.
+
+0 <start server>
+1 <target (pinged) server numeric>
+2 <requesting oper numeric>
+3 <start timestamp, seconds>
+4 <start timestamp, microseconds>
+5 <optional remark>
+
+RPING and RPONG allow an oper to measure IRC ping between 2 servers on the net, with milisecond resolution.
+
+--------------------------
+{7RO} *** RPONG
+
+there are 2 kinds of RPONG messages
+
+** from pinged server to start server
+
+0 <pinged server>
+1 <start server name>
+2 <requesting oper numeric>
+3 <start timestamp, seconds>
+4 <start timestamp, microseconds>
+5 <optional remark>
+
+** from start server to requesting oper
+
+0 <start server>
+1 <target (requesting oper) numeric>
+2 <pinged server name>
+3 <ping time, miliseconds>
+4 <optional remark>
+
+
+--------------------------
+{7S} *** SERVER
+
+1 <name of new server>
+2 <hops>
+3 <boot TS>
+4 <link TS>
+5 <protocol>
+6 <numeric of new server><max client numeric>
+7 <flags>
+-1 <description of new server>
+
+introducing a new server on the net or registering the connection to become server link.
+
+in case of an existing server introducing another server (also during burst), the source prefix must be the local end of the new link.
+
+- <hops> is incremented each time before the message is propagated to the next server; it is "1" the first time the message is sent.
+
+- the <boot TS> Parameter is the server's boot TS if it is a SERVER message for registering a connection to become server link, and may be 0 for S messages in a netburst.
+
+- <protocol> is J## when the introduced server does not yet have ended burst, or when the message comes from an unregistered connection which is to become a server link. otherwise it is P##. the protocol number is "10" for P10 protocol, so the parameter is J10 or P10. for remote SERVER messages (received from an existing P10 server link), the number may be different(???)
+
+- <max clients numerics>: see [32]
+
+- the <flags> parameter is + (normal server), +h (hub hidden in /map) or +s (services). it may also be "0" for implementations which dont support the "flags" parameter.
+
+--------------------------
+{7SE} *** SETTIME
+
+1 <timestamp>
+1 [<target server numeric>]
+
+settime sets the "clock" of one or all servers.
+
+the target server numeric is present if an oper issued "/settime timestamp server". a settime w/o target server numeric is broadcast to all servers. a server with RELIABLE_CLOCK will change the timestamp parameter of any settime message to it's own idea about the TS.
+
+--------------------------
+{7U} *** SILENCE
+
+1 <target>
+2 [-]<mask>
+
+adds or removes SILENCE masks.
+
+target can be a client or server numeric, in which case the message is sent to the server of the target. it can be *, in which case the message is broadcasted to all servers. each server on the path which parses the message adds/removes the mask to the source's silence list. 
+
+the mask is always in nick!user@host format, such as *!*@*. the mask parameter can have a + prefix for adding, but it is not needed and ircu does not send it. the - prefix means remove the mask.
+
+how it is used:
+
+when you set a mask, it is not yet propagated to all servers. when a privmsg/notice message is sent, the first server on the path which has a matching silence mask blocks the message and sends a silence with the target being the one who sent the message; the next message is blocked at the sender's server. when a silence mask is removed, it is broadcasted with * target.
+
+--------------------------
+{7SQ} *** SQUIT
+
+1 <target name>
+2 <link TS>
+-1 [<reason>]
+
+remove a server from the network
+
+- the target is the name of the target server, without wildcards. it is not the numeric.
+
+- if the <Link TS> parameter is equal to the link timestamp of the target server, or equal to 0, it applies. otherwise the SQ message is ignored.
+
+the message is propagated to all links except the link where the message came from, and the target server if it is directly linked:
+
+if a SQ is to be sent to a directly linked target, the <target server> parameter will be the name of the local server. in this case, ircu sends link timestamp parameter 0.
+
+--------------------------
+{7R} *** STATS
+
+1 <stats char>
+2 <remote server numeric>
+3 [<stats extra parameter>]
+
+remote stats request
+
+the extra parameter is for example the search mask for /stats G
+
+--------------------------
+{7SJ} *** SVSJOIN (non undernet)
+
+1 <target numeric>
+2 <channel>
+
+cause someone else to join a channel. this command is not used on undernet. optional.
+channel may be a comma separated list
+servers propagate this message until it reaches the target server, which then broadcasts a normal join (J) for the target user.
+
+--------------------------
+{7SN} *** SVSNICK (non undernet)
+
+1 <target numeric>
+2 <new nick>
+
+change someone else's nick. this command is not used on undernet. optional.
+
+servers propagate this message until it reaches the target server, which then broadcasts a normal nickchange (N) for the target user. in case of a collision, the target server first kills the existing user.
+
+--------------------------
+{7T} *** TOPIC
+
+1 <channel>
+-3 [<channel creationtime>]
+-2 [<topic changed time>]
+-1 <topic>
+
+- undernet ircu does not accept topic messages from servers; it doesn't support topicburst. asuka does.
+
+- if the topic changed time parameter is present, and it is older than the existing topic changed time of the channel, ignore the message.
+
+- if the channel creationtime parameter is present, and it is younger than the creationtime of the existing channel, ignore the message
+
+--------------------------
+{7TR} *** TRACE
+
+1 <target param>
+2 <target server numeric>
+
+trace path to target
+
+the target param is what the user entered (nick or server mask). the message is routed to the target server numeric.
+
+--------------------------
+{7UP} *** UPING
+
+1 <server name mask to ping>
+2 <port>
+3 <target server numeric>
+4 <number of pings>
+
+ircu UDP ping
+
+- the target server looks for a C:line for the server name mask.
+
+--------------------------
+{7V} *** VERSION
+
+1 <target server numeric>
+
+remote "version" request
+
+--------------------------
+{7WC} *** WALLCHOPS
+
+1 <channel>
+-1 <message>
+
+wallchops message. sent to all channel operators in the channel.
+
+- the channel parameter may not be a comma separated list.
+
+- note that the @ prefix at the begin of the message is sent on server-server protocol.
+
+--------------------------
+{7WA} *** WALLOPS
+
+-1 <message>
+
+wallops message. sent to all operators with mode +w.
+
+- the * prefix is not sent on server-server protocol.
+
+--------------------------
+{7WU} *** WALLUSERS
+
+-1 <message>
+
+wallusers message. sent to all operators and users with mode +w.
+
+- the $ prefix is not sent on server-server protocol.
+
+--------------------------
+{7WV} *** WALLVOICES
+
+wallvoices message. sent to all channel operators and voiced users in the channel.
+
+1 <channel>
+-1 <message>
+
+- the channel parameter may not be a comma separated list.
+
+- note that the + prefix at the begin of the message is sent on server-server protocol.
+
+--------------------------
+{7W} *** WHOIS
+
+1 <target server num>
+2 <search string>
+
+remote whois request.
+the search string parameter can be a single nick or nick mask with wildcards, and it can be a comma separated list.
+
+======================================
+{8} - KNOWN BROKEN IMPLEMENTATIONS
+======================================
+{8G} GNUworld (undernet services) had a bug which caused it to send NULL terminators. ircu's parser ignores them so the problem never showed. it is said to be fixed in version 2.2.
+
+{8L} Lightweight (quakenet L channel service) can only parse AC tokens without colon prefix for the last parameter - if one is present, it will be taken as the first char of the account name.
+
+{83} many P10 services, including srvx, break on parsing N tokens with umode +h (sethost) because they don't parse the numeric and base64 IP counting from the end.
+
+------------------
+changes
+20030823: kill path
+20030901: fixed typo in CREATE (sends sends)
+20031101: transactional kick/zombie part
+20031119: tell about GL/JU burst, mention they're before nicks (since .06). tell about "max client numeric". added search tags.
+20031122: about registering the connection

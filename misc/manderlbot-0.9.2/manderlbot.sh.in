@@ -1,0 +1,65 @@
+#!/bin/bash
+
+#
+# This script allows to launch manderlbot and control it while running
+#
+
+# $Id: manderlbot.sh.in,v 1.2 2003/10/07 17:52:43 nico Exp $
+
+INSTALL_DIR=%INSTALL_DIR%
+VERSION=%VERSION%
+
+BOOT_SCRIPT="$INSTALL_DIR/lib/manderlbot-$VERSION/priv/manderlbot"
+RUN_OPTIONS="-detached -setcookie mdb"
+
+usage() {
+    prog=`basename $1`
+    echo "$prog start|stop|restart|status"
+}
+
+start() {
+    echo "erl -sname manderlbot $RUN_OPTIONS -boot $BOOT_SCRIPT $CONF_OPT $LOG_OPT \
+	    $LOG_LEVEL_OPT"
+    erl -sname manderlbot $RUN_OPTIONS -boot $BOOT_SCRIPT $CONF_OPT $LOG_OPT \
+	    $LOG_LEVEL_OPT
+}
+
+stop() {
+    erl -sname control $RUN_OPTIONS -s mdb_control stop
+}
+
+status() {
+    pid=`ps -edaf | awk '/-[s]name manderlbot/ {print $2}'`
+
+    if [ "zz$pid" != "zz" ]; then
+	erl -sname control $RUN_OPTIONS -s mdb_control status
+	echo $LOG_OPT
+	echo $CONF_OPT
+    else
+	echo "manderlbot is not running"
+	echo $LOG_OPT
+	echo $CONF_OPT
+    fi
+}
+
+while getopts ":c:l:f:" Option
+do
+    case $Option in
+        c) CONF_OPT="-manderlbot config_file \"$OPTARG\" ";;
+        f) LOG_OPT="-manderlbot log_file \"$OPTARG\" ";;
+        l) LOG_LEVEL_OPT="-manderlbot log_level '$OPTARG' ";;
+		*) usage ;;
+    esac
+done	
+shift $(($OPTIND - 1))	
+case $1 in
+    start) start;;
+
+    stop)  stop;;
+
+    status) status;;
+
+    restart) stop && start;;
+
+    *) usage $0
+esac

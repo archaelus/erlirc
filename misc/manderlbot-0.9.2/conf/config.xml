@@ -1,0 +1,77 @@
+<manderlbot name="Manderlbot http://manderlbot.tuxfamily.org" controler="dim">
+	<dict host="localhost" port="2628" default="wn">
+	</dict>
+
+	<server host="irc.tuxfamily.org" port="6667">
+		<channel name="#manderlbot-test" botname="mdb"
+			behaviours="rejoin reconf login mute prout hop dict jargon
+			google pyramid deb dfile bofh rtfm">
+		</channel>
+	</server>
+
+	<behaviours>
+		<behaviour name="rejoin" action="rejoin" op="kick">
+			rejoin
+		</behaviour>
+
+		<behaviour name="reconf" action="reconf" pattern="^%BOTNAME:.*reconf">
+			/etc/manderlbot/config.xml
+		</behaviour>
+
+		<behaviour name="login" action="say" op="join" from="%BOTNAME">
+			Hello world
+		</behaviour>
+
+		<behaviour name="mute" action="mute" pattern="^%BOTNAME: mute">
+			mute
+		</behaviour>
+
+        <behaviour name="deb" action="debian_pkg" pattern="^apt-search">
+			debian_pkg
+        </behaviour>
+
+		<behaviour name="dfile" action="debian_file" pattern="^apt-file">
+			debian_file
+        </behaviour>
+
+
+		<behaviour name="pyramid" action="pyramid" pattern="^pyramid">
+			pyramid
+		</behaviour>
+
+		<behaviour name="google" action="google" pattern="^google">
+			google
+		</behaviour>
+
+		<behaviour name="dict" action="dict" pattern="^dict">
+			wn
+		</behaviour>
+
+		<behaviour name="jargon" action="dict" pattern="^jargon">
+			jargon
+		</behaviour>
+
+		<behaviour name="hop" action="say" pattern="hop op">
+			poh
+		</behaviour>
+
+		<behaviour name="prout" action="say" pattern="pra?out" from="^dim">
+			plic plic plic
+		</behaviour>
+
+        <behaviour name="rtfm" action="random"
+                        pattern="(aide|help|plz|comprend|comment)"
+						exl_pattern="[çc]a va">
+%R.T.F.M.
+%I do not like newbies
+%http://www.tuxedo.org/~esr/faqs/smart-questions.html
+%http://www.gnurou.org/documents/smart-questions-fr.html
+%http://michel.arboi.free.fr/humeur/nioubis.html
+%http://www.readthefuckingmanual.com
+        </behaviour>
+
+		<behaviour name="bofh" action="fortune" pattern="(bofh|BOFH|excuse)">
+			/etc/manderlbot/bofh.fortune
+		</behaviour>
+	</behaviours>
+</manderlbot>

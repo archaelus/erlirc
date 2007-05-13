@@ -1,0 +1,700 @@
+#LyX 1.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 221
+\textclass report
+\language english
+\inputencoding latin1
+\fontscheme default
+\graphics default
+\float_placement !htbp
+\paperfontsize default
+\spacing onehalf 
+\papersize a4paper
+\paperpackage a4wide
+\use_geometry 0
+\use_amsmath 0
+\use_natbib 0
+\use_numerical_citations 0
+\paperorientation portrait
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\defskip medskip
+\quotes_language english
+\quotes_times 2
+\papercolumns 1
+\papersides 1
+\paperpagestyle fancy
+
+\layout Title
+
+Manderlbot, an erlang irc bot
+\layout Author
+
+Dimitri Fontaine
+\layout Standard
+
+
+\begin_inset LatexCommand \tableofcontents{}
+
+\end_inset 
+
+
+\layout Chapter
+
+Introduction
+\layout Standard
+
+This document provides some helpfull information (or I hope so) about the
+ manderlbot irc bot, on how to use and configure it.
+\layout Section*
+
+A bit of history
+\layout Standard
+
+But why did we wrote this software ?
+\layout Standard
+
+Well, I wanted an irc bot to play with, in order to have it say some silly
+ things automatically on answer to our own idioties.
+ I did not want an eggdrop or whatever controlling channel bot.
+ I saw that manderlbot
+\begin_inset Foot
+collapsed true
+
+\layout Standard
+
+You can see it on 
+\begin_inset LatexCommand \url[manderlbot SF page]{http://manderlbot.sourceforge.net}
+
+\end_inset 
+
+
+\end_inset 
+
+ project existing, was already familiar with erlang developpment, so I began
+ using it.
+\layout Standard
+
+The existing project was on early stage of development, and I wanted the
+ bot to do more and more things.
+ So I wrote some code to make it fit my needs.
+ As the original authors would not consider my patches, I forked the project,
+ keeping the name (they seemed not to work on their version at all), and
+ hosting it on the TuxFamily services
+\begin_inset Foot
+collapsed true
+
+\layout Standard
+
+Tuxfamily services are found here\SpecialChar ~
+: 
+\begin_inset LatexCommand \url{http://tuxfamily.org}
+
+\end_inset 
+
+
+\end_inset 
+
+.
+\layout Chapter
+
+Using manderlbot
+\layout Standard
+
+This is the user documentation of manderlbot.
+\layout Section
+
+Install
+\layout Standard
+
+The better would be to run a debian GNU/Linux system.
+ In that case, a simple 
+\family typewriter 
+apt-get install manderlbot
+\family default 
+ get you with all the necessary stuff.
+\layout Standard
+
+Otherwise, you'll have to get the last available manderlbot release on 
+\family typewriter 
+manderlbot.tuxfamily.org
+\family default 
+, and the necessary tools, that is:
+\layout Itemize
+
+erlang system, see 
+\family typewriter 
+erlang.org
+\family default 
+ or your distribution vendor for some packages
+\layout Itemize
+
+
+\family typewriter 
+xmerl-0.15
+\family default 
+ library (which will allow for configuration file reading), available as
+ a user contribution on the 
+\family typewriter 
+erlang.org
+\family default 
+ web site.
+\layout Standard
+
+If you are using 
+\family typewriter 
+windows
+\family default 
+, as erlang is known to work even on such a 
+\emph on 
+system
+\emph default 
+, you should be abble to install and run 
+\family typewriter 
+manderlbot
+\family default 
+.
+ But I did never try that, and do not plan to do it ever.
+ Good luck!
+\layout Standard
+
+\SpecialChar ~
+
+\layout Standard
+
+So you have installed erlang system and placed 
+\family typewriter 
+xmerl
+\family default 
+ library (version 
+\family typewriter 
+0.15
+\family default 
+) at the right place (on my debian system, it is found in 
+\family typewriter 
+/usr/lib/erlang/lib/xmerl-0.15
+\family default 
+).
+ You now can type the usual following:
+\layout LyX-Code
+
+$ make
+\layout LyX-Code
+
+$ sudo make install
+\layout Standard
+
+And manderlbot will be ready to be launched!
+\layout Section
+
+Launch and stop
+\layout Standard
+
+As of the 0.9.1 release of manderlbot, you can control manderlbot using the
+ given 
+\family typewriter 
+/usr/bin/manderlbot
+\family default 
+ script:
+\layout LyX-Code
+
+$ manderlbot
+\layout LyX-Code
+
+manderlbot start|stop|restart|status
+\layout LyX-Code
+
+$ manderlbot start
+\layout Standard
+
+The stop option will kill the running manderlbot, and if started the status
+ will list all the running bots, indicating the servers and channels where
+ it is connected.
+\layout Standard
+
+If you want to redirect outputs, you'll then prefer that way:
+\layout LyX-Code
+
+$ manderlbot start >/var/log/manderlbot.log 2>&1 &
+\layout Standard
+
+Please make sure you are allowed to write in your log file!
+\layout Section
+
+Configure
+\layout Standard
+
+The 
+\family typewriter 
+manderlbot
+\family default 
+ configuration file is to be found in 
+\family typewriter 
+/etc/manderlbot/config.xml
+\family default 
+, and has to be edited to fit your needs.
+ By default it contains some basic rules as examples.
+\layout Subsection
+
+Configuration file
+\layout Standard
+
+The configuration file is an XML file containing the following elements:
+\layout Description
+
+manderlbot is the opening XML element of the configuration, and contains
+ the properties 
+\family typewriter 
+name
+\family default 
+ and 
+\family typewriter 
+controler
+\family default 
+.
+ The name will be shown as the bot fullname, the controller property may
+ contain one or more nicknames separated by spaces, only those people will
+ then be allowed to operate on the running bot from irc channel.
+\layout Quote
+
+All the following sections, otherwise stated, are to be found under this
+ one.
+\layout Description
+
+dict is the section where to define the dictionnary server you may want
+ to use.
+ See 
+\family typewriter 
+dict.org
+\family default 
+ for details about the protocol and servers.
+ Be aware that you can run a dict server locally, and download some useful
+ dictionnaries.
+\layout Quote
+
+The properties to define here are the dict server 
+\family typewriter 
+host
+\family default 
+, the 
+\family typewriter 
+port
+\family default 
+, and the 
+\family typewriter 
+default
+\family default 
+ dictionnary to use.
+\layout Description
+
+server allows you to define which servers manderlbot should connect to.
+ The properties are 
+\family typewriter 
+host
+\family default 
+ and 
+\family typewriter 
+port
+\family default 
+.
+ You have to define a server section for each and every irc server you want
+ 
+\family typewriter 
+manderlbot
+\family default 
+ to connect to.
+\layout Description
+
+channel section is where to configure the 
+\family typewriter 
+manderlbot
+\family default 
+ behaviour and name.
+ This section has to be embedded in the server one.
+ You have to define a channel section per channel you want 
+\family typewriter 
+manderlbot
+\family default 
+ to join on a server.
+\layout Quote
+
+The properties of channel section are 
+\family typewriter 
+name
+\family default 
+, the channel name, 
+\family typewriter 
+botname
+\family default 
+, the manderlbot nickname on that channel, and 
+\family typewriter 
+behaviours
+\family default 
+, a list of behaviours name you want to activate for that channel.
+\layout Description
+
+behaviours will just contain your behaviour list
+\layout Description
+
+behaviour have to be found under the 
+\family typewriter 
+behaviours
+\family default 
+ section.
+ You define here your behaviour, which properties are 
+\family typewriter 
+name
+\family default 
+, the name to use in the channel definition, the 
+\family typewriter 
+action
+\family default 
+, defining what will be done, and one or more of the followings pattern
+ elements: 
+\family typewriter 
+pattern
+\family default 
+, 
+\family typewriter 
+op
+\family default 
+, 
+\family typewriter 
+to, option
+\family default 
+ and 
+\family typewriter 
+from
+\family default 
+.
+ You can even prefix those properties with '
+\family typewriter 
+exl_
+\family default 
+' to get an exclude pattern match (see section 
+\begin_inset LatexCommand \ref{sub:Behaviour-matching}
+
+\end_inset 
+
+).
+\layout Quote
+
+This element contains data wich will be used as the 
+\emph on 
+action
+\emph default 
+ parameter, as explain in section 
+\begin_inset LatexCommand \ref{sub:Implemented-actions}
+
+\end_inset 
+
+.
+\layout Subsection
+
+Behaviour matching
+\begin_inset LatexCommand \label{sub:Behaviour-matching}
+
+\end_inset 
+
+
+\layout Standard
+
+So when you define a behaviour, you want 
+\family typewriter 
+manderlbot
+\family default 
+ to react on some event on irc channel it is connected to, and take some
+ action.
+ Here we see how to define the event you want it to react to.
+ As on irc all you do is sending lines of text, an event as to be text line
+ oriented.
+\layout Standard
+
+So 
+\family typewriter 
+manderlbot
+\family default 
+ configuration allows you to define some regexp
+\begin_inset Foot
+collapsed true
+
+\layout Standard
+
+Regular Expressions, see 
+\begin_inset LatexCommand \url{http://www.regular-expressions.info}
+
+\end_inset 
+
+
+\end_inset 
+
+ to match the lines received.
+ If the line is matched, the associated action is done.
+ Please note the regexp are all considered case insensitive ones.
+\layout Standard
+
+You can define some 
+\emph on 
+regexp
+\emph default 
+ on the following parts of the received line (containing some server information
+s relative to IRC protocol
+\begin_inset Foot
+collapsed true
+
+\layout Standard
+
+See the 
+\begin_inset LatexCommand \url[RFC 1459]{http://www.faqs.org/rfcs/rfc1459.html}
+
+\end_inset 
+
+
+\end_inset 
+
+):
+\layout Description
+
+pattern will try to match the user input, that is what your ordinary irc
+ client will show you
+\layout Description
+
+op will try to match the irc operation, see the RFC for complete list (op
+ can be 
+\begin_inset Quotes eld
+\end_inset 
+
+kick
+\begin_inset Quotes erd
+\end_inset 
+
+ or 
+\begin_inset Quotes eld
+\end_inset 
+
+join
+\begin_inset Quotes erd
+\end_inset 
+
+ for example)
+\layout Description
+
+to irc protocol 
+\family typewriter 
+to
+\family default 
+ field, will probably contain the channel name, so you won't need that...
+\layout Description
+
+option irc protocol 
+\family typewriter 
+option
+\family default 
+ field
+\layout Description
+
+from the nickname of the one who typed the current line, on the form 
+\family typewriter 
+nick!~user@host.domain.tld
+\layout Standard
+
+And in order to make it even more powerful and readable, you can define
+ the same patterns with an '
+\family typewriter 
+exl_
+\family default 
+' prefix, this will prevent the 
+\family typewriter 
+action
+\family default 
+ to being taken if it matches.
+ So you can define the parameters 
+\family typewriter 
+exl_pattern
+\family default 
+, 
+\family typewriter 
+exl_op
+\family default 
+, 
+\family typewriter 
+exl_to
+\family default 
+, 
+\family typewriter 
+exl_option
+\family default 
+ and 
+\family typewriter 
+exl_from
+\family default 
+.
+\layout Standard
+
+Of course, you can use any combination of the listed parameters, thus being
+ quite precise on what you want to react to.
+\layout Subsection
+
+Implemented actions
+\begin_inset LatexCommand \label{sub:Implemented-actions}
+
+\end_inset 
+
+
+\layout Standard
+
+The 
+\family typewriter 
+action
+\family default 
+ parameter of the behaviour configuration element defines the manderlbot
+ behaviour on matching a line.
+ Here is a list of provided actions you can use.
+ If you want 
+\family typewriter 
+manderlbot
+\family default 
+ to take an action not described here, you will have to write some erlang
+ code to teach him what you want!
+\layout Standard
+
+The argument of the 
+\family typewriter 
+action
+\family default 
+ is the xml data given enclosed in the 
+\family typewriter 
+behaviour
+\family default 
+ element.
+\layout Description
+
+action send the given argument as if manderlbot had typed it after the 
+\family typewriter 
+/me
+\family default 
+ irc command.
+\layout Description
+
+answer send the line prefixed with the sender name and a colon.
+\layout Description
+
+bloto this will count the matched lines per user, and first obtaining 5
+ points has won the business loto game.
+ Just define your buzzwords set and make it a regexp!
+\layout Description
+
+debian_file will search the irc given file using the debian web site cgi.
+ The argument is not used.
+\layout Description
+
+debian_pkg will search the irc given package using the debian web site cgi.
+ The argument is not used.
+\layout Description
+
+dict will ask your defined dict server for the given word.
+ The argument may be the dictionnary name to use in the query, but defaults
+ to the '
+\family typewriter 
+default
+\family default 
+' entry of the dict config element.
+\layout Description
+
+google will ask google for the rest of the irc line.
+ The argument is not used.
+\layout Description
+
+mute will mute the bot, you have to be a controler to use that.
+ The argument is not used.
+\layout Description
+
+pyramid is a game named after a french TV game.
+ You have to make guess a world to an irc fellow on that channel, in a given
+ number or tries.
+ The argument is not used.
+\layout Description
+
+random will say one of the sentences listed in the arguments randomly.
+ The sentences have to be separated by '
+\family typewriter 
+%
+\family default 
+' signs.
+\layout Description
+
+reconf will ask the bot to re-read its configuration.
+ It allows you to handle dynamically your configuration, no need to restart
+ the bot, and irc control! You have to be in the controler list to use this
+ action.
+\layout Description
+
+rejoin allows you te rejoin a channel (useful on kick, just add a 
+\family typewriter 
+op=
+\begin_inset Quotes erd
+\end_inset 
+
+kick
+\begin_inset Quotes erd
+\end_inset 
+
+
+\family default 
+ parameter to the behaviour element definition).
+\layout Description
+
+say will say the arguments.
+\layout Description
+
+timer will say the first argument, then wait for a random time, and say
+ the other arguments.
+ The args have to be separated bu a '
+\family typewriter 
+%
+\family default 
+' char.
+\layout Section
+
+Interacting with the running bot, from irc
+\layout Standard
+
+You can use the 
+\family typewriter 
+reconf
+\family default 
+ and 
+\family typewriter 
+mute
+\family default 
+ actions (see section 
+\begin_inset LatexCommand \ref{sub:Implemented-actions}
+
+\end_inset 
+
+) to control the bot from irc, and you define who can do that in the first
+ configuration element, with the 
+\family typewriter 
+controler
+\family default 
+ property.
+\layout Chapter
+
+Conclusion
+\layout Standard
+
+You should now be abble to install, run and configure your manderlbot, and
+ have it play with you on your prefered IRC channel.
+\layout Standard
+
+If you miss some action, please consider playing with the code (in erlang)
+ or sending us some feature request, we may or may not implement your ideas!
+\layout Standard
+
+If you want to contribute, send a patch, and you may obtain a write access
+ on the CVS (you may want to create a user account on tuxfamily.org services
+ first).
+\layout Standard
+
+Enjoy manderlbot, enjoy free software!
+\the_end
