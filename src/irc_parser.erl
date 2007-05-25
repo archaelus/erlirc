@@ -17,7 +17,7 @@ parse_line(Line) ->
     parse_line(Line, #cmd{raw=Line}).
 
 parse_line([A,B,C,D,E,$\s|Rest], Cmd) ->
-    case irc_numeric:p10b64_to_int([A,B,C,D,E]) of 
+    case irc_numerics:p10b64_to_int([A,B,C,D,E]) of 
         Num when is_integer(Num) ->
             parse_command_part(Rest, Cmd#cmd{source=#user{numeric=Num}});
         {error, Reason} ->
@@ -52,12 +52,14 @@ parse_prefix(Prefix, #cmd{source=User} = Cmd) ->
                 false ->
                     Cmd#cmd{source=User#user{nick=Nick}}
             end;
-        [Nick, HostSpec] -> 
-            case string:tokens(HostSpec, "!") of
-                [User, Host] ->
-                    Cmd#cmd{source=User#user{nick=Nick, user=User, host=Host}};
-                [Host] ->
-                    Cmd#cmd{source=User#user{nick=Nick, host=Host}}
+        [NickSpec, HostSpec] -> 
+            case string:tokens(NickSpec, "!") of
+                [Nick, [$~|HostUser]] ->
+                    Cmd#cmd{source=User#user{nick=Nick, user=HostUser, host=HostSpec}};
+                [Nick, HostUser] ->
+                    Cmd#cmd{source=User#user{nick=Nick, user=HostUser, host=HostSpec}};
+                [_Host] ->
+                    Cmd#cmd{source=User#user{nick=NickSpec, host=HostSpec}}
             end
     end.
 
@@ -96,3 +98,25 @@ nonl([$\r,$\n]) -> [];
 nonl([$\n]) -> [];
 nonl([]) -> [];
 nonl([H|T]) -> [H|nonl(T)].
+
+join(_, []) ->
+    [];
+join(_, [String]) when is_list(String) ->
+    String;
+join(Sep, Strings) when is_integer(Sep) ->
+    join([Sep], Strings);
+join(Sep, Strings) when is_list(Sep), length(Strings) > 1 ->
+     join(Sep, tl(Strings), [hd(Strings)]).
+
+join(_Sep, [], Acc) ->
+    lists:append(lists:reverse(Acc));
+join(Sep, [Hd|Tl], Acc) ->
+    join(Sep, Tl, [Hd,Sep|Acc]).
+
+join_test() ->
+    ?assertMatch("This is a test.",
+                 join($\s, ["This", "is", "a", "test."])).
+
+join_2_test() ->
+    ?assertMatch("This",
+                 join($\s, ["This"])).
