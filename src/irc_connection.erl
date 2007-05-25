@@ -90,7 +90,7 @@ init([Conf, Owner]) ->
 %%--------------------------------------------------------------------
 handle_call({connected, Socket}, _From, State) ->
     inet:setopts(Socket, [{active, true}]),
-    o_send(State, {connected, self()}),
+    o_send(State, connected),
     {reply, ok, State#state{sock=Socket}};
 handle_call({line, Line}, _From, State = #state{sock=Sock}) ->
     case gen_tcp:send(Sock, Line) of
@@ -128,7 +128,6 @@ handle_cast(Cast, State) ->
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
 handle_info({tcp, _Port, Line}, State) ->
-    o_send(State, {raw_line, Line}),
     try parse(State, Line) of
         Term -> o_send(State, Term)
     catch
