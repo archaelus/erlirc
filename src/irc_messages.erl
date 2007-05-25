@@ -29,6 +29,7 @@
 parse_line(Line) ->
     parse_args(irc_parser:parse_line(Line)).
 
+%%--------------------------------------------------------------------
 parse_args(Cmd) when is_record(Cmd, cmd) ->
     parse_args(Cmd#cmd.name, Cmd#cmd.args, Cmd).
 
@@ -36,31 +37,56 @@ parse_args(error, ":" ++ Args, Cmd) ->
     parse_error(Cmd, lists:split(string:chr(Args, $:), Args));
 parse_args(notice, Args, Cmd) ->
     parse_notice(Cmd, string:tokens(Args, ":"));
+
 parse_args(needmoreparams, Args, Cmd) ->
     parse_error(needmoreparams, string:tokens(Args, ":"), Cmd);
+
 parse_args(pass, ":" ++ Pass, Cmd) ->
     Cmd#cmd{args=[{pass, Pass}]};
+
 parse_args(server, Args, Cmd) ->
     parse_server(Cmd, Args);
+
 parse_args(nick, Args, Cmd) ->
     parse_nick(Cmd, Args);
+
 parse_args(end_of_burst, _Args, Cmd) ->
     Cmd#cmd{args = []};
 parse_args(burst, Args, Cmd) ->
     parse_burst(Cmd, string:tokens(Args, " "));
-parse_args(ping, [$:|Token], Cmd) ->
+
+parse_args(PingPong, [$:|Token], Cmd) when PingPong == ping; PingPong == pong ->
     Cmd#cmd{args=[{token , Token}]};
+
+parse_args(privmsg, Args, Cmd) ->
+    {Target, Msg} = irc_parser:split($:, Args),
+    parse_privmsg(Cmd#cmd{target=string:strip(Target, right, $\s)},
+                  Msg);
+
+parse_args(join, [$:|Chans], Cmd) ->
+    Cmd#cmd{args=[{channels, string:tokens(Chans, ",")}]};
+
 parse_args(Name, Args, Cmd) when Name == welcome;
                                  Name == yourhost;
                                  Name == created;
-                                 Name == myinfo ->
-    
+                                 Name == myinfo;
+                                 Name == isupport;
+                                 Name == luserclient;
+                                 Name == luserop;
+                                 Name == luserchannels;
+                                 Name == luserme;
+                                 Name == luserconns;
+                                 Name == motdstart;
+                                 Name == motd;
+                                 Name == endofmotd;
+                                 Name == nglobal;
+                                 Name == nlocal ->
     {Target, Msg} = irc_parser:split(Args),
-    Cmd#cmd{args=[{target, Target},
-                  {message, Msg}]}.
+    Cmd#cmd{target=Target,
+            args=[{message, Msg}]}.
 
 
-
+%%--------------------------------------------------------------------
 parse_error(Cmd, {Reason, Text}) ->
     Cmd#cmd{args = [{error, string:strip(Reason, right, $:)},
                     {text, string:strip(Text, both, $\s)}]};
@@ -71,19 +97,21 @@ parse_error(Code, [Info, Text], Cmd) ->
     case string:tokens(Info, " ") of
         [Target, Command] ->
             Cmd#cmd{name=error,
+                    target=Target,
                     args=[{code, Code},
-                          {target, Target},
                           {command, Command},
                           {text, Text}]}
     end.
 
 
+%%--------------------------------------------------------------------
+parse_notice(Cmd, [Target, Text]) ->
+    Cmd#cmd{args = [{text, Text}], target=Target};
+parse_notice(Cmd, [Target | Text]) ->
+    Cmd#cmd{target = string:strip(Target, right, $\s),
+            args = [{text, irc_parser:join($:, Text)}]}.
 
-parse_notice(Cmd, [Facility, Text]) ->
-    Cmd#cmd{args = [{facility, Facility}, {text, Text}]}.
-
-
-
+%%--------------------------------------------------------------------
 parse_server(Cmd, Args) when is_list(Args) ->
     parse_server(Cmd, irc_parser:split($:, Args));
 parse_server(Cmd, {Args,Description}) ->
@@ -101,7 +129,7 @@ parse_server(Cmd, [Name, HopCount, BootTS, LinkTS, Proto, [A,B|MaxClient], Flags
                               description=Description}}.
 
 
-
+%%--------------------------------------------------------------------
 parse_nick(Cmd, Args) when is_list(Args) ->
     parse_nick(Cmd, split_one_prefix_many_space(Args));
 parse_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,"+" ++ UMode,AuthName,Numeric], Description}) ->
@@ -123,6 +151,7 @@ parse_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,AuthName,Numeric], De
                          mode="",
                          description=Description}}.
 
+%%--------------------------------------------------------------------
 parse_burst(Cmd, [Name, ChanTS, "+" ++ ChanMode, UserData]) ->
     parse_burst_userdata(Cmd#cmd{target=#chan{name=Name,
                                               chan_ts=ChanTS,
@@ -164,6 +193,7 @@ parse_burst_userdata(#cmd{target = Chan} = Cmd, [Users | Rest]) ->
 parse_burst_userdata(Cmd, []) ->
     Cmd.
 
+%%--------------------------------------------------------------------
 to_list(Cmd) when is_record(Cmd, cmd) ->
     to_list(Cmd#cmd.name, Cmd#cmd.args, Cmd) ++ "\r\n".
 
@@ -212,6 +242,17 @@ to_list(nick, [{name, Name}], _Cmd) ->
 
 to_list(quit, _, _Cmd) ->
     "QUIT";
+
+to_list(join, Args, _cmd) ->
+    Chans = proplists:get_value(channels, Args, []),
+    Cs = case lists:partition(fun is_tuple/1, Chans) of
+             {[], NonKeyed} ->
+                 irc_parser:join(",", NonKeyed);
+             {Keyed, NonKeyed} ->
+                 irc_parser:join(",", [C || {C,_} <- Keyed] ++ NonKeyed) ++ " " ++
+                     irc_parser:join(",", [K || {_C, K} <- Keyed])
+         end,
+    lists:flatten(["JOIN ", Cs]);
 
 to_list(user, Args, _Cmd) ->
     Name = proplists:get_value(user_name, Args),
@@ -263,3 +304,9 @@ parse_line_7_test() ->
 parse_line_8_test() ->
     ?assertMatch(X when is_record(X, cmd),
                  parse_line("AC N shinsterw 1 1167197569 sian leibniz.catalyst.net.nz DKTvAH ACAE[ :shinster\r\n")).
+
+to_list_join_test() ->
+    ?assertMatch("JOIN #c1,#c2\r\n",
+                 to_list(#cmd{name=join,
+                              args=[{channels,
+                                     ["#c1", "#c2"]}]})).
