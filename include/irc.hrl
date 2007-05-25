@@ -36,6 +36,7 @@
                name,
                chan_ts,
                mode,
+               topic,
                users = [],
                voices = [],
                ops = []}).
