@@ -113,11 +113,14 @@ wait_connected({irc, Pid, connected}, State = #state{conf=Conf}) ->
     {next_state, welcome, State}.
 
 welcome({irc, Pid, #irc_cmd{source=S, name=privmsg, ctcp=[#ctcp_cmd{name=version}]}}, State) ->
+    CtcpReply = #ctcp_cmd{name=version,
+                          args=[{client, atom_to_list(?MODULE)},
+                                {version, "0.0.1"},
+                                {environment, "erlang"}]},
     irc_connection:send_cmd(Pid, #irc_cmd{name=notice,
                                           target=S#user.nick,
-                                          args=[{client, atom_to_list(?MODULE)},
-                                                {version, "0.0.1"},
-                                                {environment, "erlang"}]}),
+                                          args=[{message, ""}],
+                                          ctcp=[CtcpReply]}),
     {next_state, welcome, State};
 welcome({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->
     irc_connection:send_cmd(Pid, #irc_cmd{name=pong,
