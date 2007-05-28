@@ -68,6 +68,23 @@ parse_args(privmsg, Args, Cmd) ->
 parse_args(join, [$:|Chans], Cmd) ->
     Cmd#irc_cmd{args=[{channels, string:tokens(Chans, ",")}]};
 
+parse_args(notopic, Args, Cmd) ->
+    Cmd;
+parse_args(topic, [$:|Topic], Cmd) ->
+    Cmd#irc_cmd{args=[{topic, Topic}]};
+
+parse_args(namreply, Arg, Cmd) ->
+    {NickChan, MemberStr} = irc_parser:split($:, Arg),
+    {Nick, Chan} = irc_parser:split($=, NickChan),
+    Members = string:tokens(MemberStr, " "),
+    Cmd#irc_cmd{args=[{channel, Chan},
+                      {members, Members}]};
+
+parse_args(endofnames, Arg, Cmd) ->
+    {Chan, Message} = irc_parser:split($:, Arg),
+    Cmd#irc_cmd{args=[{channel, Chan},
+                      {message, Message}]};
+
 parse_args(Name, Args, Cmd) when Name == welcome;
                                  Name == yourhost;
                                  Name == created;
@@ -134,8 +151,8 @@ parse_ctcp_cmd(Cmd, _C, _) ->
 
 ctcp_to_list(#ctcp_cmd{name=version, args=A}) ->
     Client = proplists:get_value(client, A, "erlirc"),
-    Version = proplists:get_value(client, A, "0.0.1"),
-    Environment = proplists:get_value(client, A, "erlang"),
+    Version = proplists:get_value(version, A, "0.0.1"),
+    Environment = proplists:get_value(environment, A, "erlang"),
     io_lib:format("VERSION ~s:~s:~s", [Client, Version, Environment]);
 ctcp_to_list(#ctcp_cmd{name=action, args=[{action, A}]}) ->
     "ACTION " ++ A;
@@ -345,7 +362,7 @@ to_list(join, Args, _cmd) ->
 to_list(Name, [{message, M}],
         #irc_cmd{target=T, ctcp = undefined}) when Name == notice;
                                                    Name == privmsg ->
-    lists:flatten([irc_commands:to_list(Name), nick(T), " ", M]);
+    lists:flatten([irc_commands:to_list(Name), " ", nick(T), " :", M]);
 
 to_list(Name, Args, 
         #irc_cmd{target=T, ctcp = Ctcp}) when Name == notice;
@@ -354,7 +371,7 @@ to_list(Name, Args,
     CtcpParts = [{non_ctcp, M}|
                  [{ctcp, ctcp_to_list(C)}||C<-Ctcp]],
     lists:flatten([irc_commands:to_list(Name),
-                   " ", nick(T), " ", encode_ctcp_delims(CtcpParts)]);
+                   " ", nick(T), " :", encode_ctcp_delims(CtcpParts)]);
 
 to_list(user, Args, _Cmd) ->
     Name = proplists:get_value(user_name, Args),
@@ -385,38 +402,45 @@ nick(#user{}) ->
 nick(N) when is_list(N) ->
     N.
 
-parse_error_test() ->
+irc_error_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("ERROR :Closing Link: erl.irc by ve.irc.dollyfish.net.nz (No C:line)\r\n")).
 
-parse_line_1_test() ->
+irc_server_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("SERVER ve.irc.dollyfish.net.nz 1 1164352162 1171089421 J10 ACAP] +h :ircd on ve\r\n")).
-parse_line_2_test() ->
+burst_server_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("AC S scorch.irc.dollyfish.net.nz 2 0 1164963563 P10 ABAP] +h :DollyNET ircd at irc.dollyfish.net.nz\r\n")).
-parse_line_3_test() ->
+burst_nick_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("AB N Ned 2 1166709690 ~martyn 202-61-3-148.cable5.acsdata.co.nz +oiwg DKPQOU ABABc :Unknown\r\n")).
-parse_line_4_test() ->
+burst_service_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("AB S x2.irc.dollyfish.net.nz 3 0 1164965565 P10 A0]]] +s :X2 Channel Service\r\n")).
-parse_line_5_test() ->
+burst_chang_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("AC B #wow 1167179822 ACAE[\r\n")).
-parse_line_6_test() ->
+burst_chan_2_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("AC B #blah 1164352204 +tn ABAFT,ACAKJ,ABAFQ,ACAJ9,ABAE7,ABAEp,ACAJH,ABAEf,ABABs:o,ABABc,A0AAA\r\n")).
-parse_line_7_test() ->
+burst_end_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("AC EB \r\n")).
-parse_line_8_test() ->
+burst_nick_2_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line("AC N shinsterw 1 1167197569 sian leibniz.catalyst.net.nz DKTvAH ACAE[ :shinster\r\n")).
 
-parse_line_9_test() ->
+ctcp_version_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line(":freenode-connect!freenode@freenode/bot/connect PRIVMSG nemerling :^AVERSION^A")).
+namreply_test() ->
+    ?assertMatch(X when is_record(X, irc_cmd),
+                 parse_line(":ve.irc.dollyfish.net.nz 353 nembot = #dullbots :nembot @nem\r\n")).
+
+endofnames_test() ->
+    ?assertMatch(X when is_record(X, irc_cmd),    
+                 parse_line(":ve.irc.dollyfish.net.nz 366 nembot #dullbots :End of /NAMES list.\r\n")).
 
 to_list_join_test() ->
     ?assertMatch("JOIN #c1,#c2\r\n",
