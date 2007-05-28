@@ -53,7 +53,7 @@ parse_args(server, Args, Cmd) ->
     parse_server(Cmd, Args);
 
 parse_args(nick, Args, Cmd) ->
-    parse_nick(Cmd, Args);
+    parse_p10_nick(Cmd, Args);
 
 parse_args(end_of_burst, _Args, Cmd) ->
     Cmd#irc_cmd{args = []};
@@ -69,8 +69,21 @@ parse_args(join, [$:|Chans], Cmd) ->
 
 parse_args(notopic, _Args, Cmd) ->
     Cmd;
-parse_args(topic, [$:|Topic], Cmd) ->
-    Cmd#irc_cmd{args=[{topic, Topic}]};
+parse_args(topic, Args, Cmd) ->
+    {NickChan, Topic} = irc_parser:split($:, Args),
+    [Nick, Chan] = string:tokens(NickChan, " "),
+    Cmd#irc_cmd{args=[{topic, Topic},
+                      {channel, Chan}],
+                target=Nick};
+
+parse_args(topicinfo, Args, Cmd) ->
+    case string:tokens(Args," ") of
+        [Nick, Chan, Setter, Ts] ->
+            Cmd#irc_cmd{target=Nick,
+                        args=[{channel, Chan},
+                              {topic_set_by, Setter},
+                              {topic_set_at, unix_ts_to_datetime(Ts)}]}
+    end;
 
 parse_args(namreply, Arg, Cmd) ->
     case string:tokens(Arg," ") of
@@ -83,9 +96,11 @@ parse_args(namreply, Arg, Cmd) ->
     end;
 
 parse_args(endofnames, Arg, Cmd) ->
-    {Chan, Message} = irc_parser:split($:, Arg),
+    {NickChan, Message} = irc_parser:split($:, Arg),
+    [Nick, Chan] = string:tokens(NickChan, " "),
     Cmd#irc_cmd{args=[{channel, Chan},
-                      {message, Message}]};
+                      {message, Message}],
+                target=Nick};
 
 parse_args(Name, Args, Cmd) when Name == welcome;
                                  Name == yourhost;
@@ -242,9 +257,9 @@ parse_server(Cmd, [Name, HopCount, BootTS, LinkTS, Proto, [A,B|MaxClient], Flags
 
 
 %%--------------------------------------------------------------------
-parse_nick(Cmd, Args) when is_list(Args) ->
-    parse_nick(Cmd, split_one_prefix_many_space(Args));
-parse_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,"+" ++ UMode,AuthName,Numeric], Description}) ->
+parse_p10_nick(Cmd, Args) when is_list(Args) ->
+    parse_p10_nick(Cmd, split_one_prefix_many_space(Args));
+parse_p10_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,"+" ++ UMode,AuthName,Numeric], Description}) ->
     Cmd#irc_cmd{target=#user{numeric=Numeric,
                              nick=Nick,
                              nick_ts=NickTS,
@@ -253,7 +268,7 @@ parse_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,"+" ++ UMode,AuthName
                              authname=AuthName,
                              mode=UMode,
                              description=Description}};
-parse_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,AuthName,Numeric], Description}) ->
+parse_p10_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,AuthName,Numeric], Description}) ->
     Cmd#irc_cmd{target=#user{numeric=Numeric,
                              nick=Nick,
                              nick_ts=NickTS,
@@ -412,6 +427,11 @@ now_to_unix_ts(Tm) ->
 now_to_unix_ts_list(Tm) ->
     integer_to_list(now_to_unix_ts(Tm)).
 
+unix_ts_to_datetime(Ts) when is_list(Ts) ->
+    unix_ts_to_datetime(list_to_integer(Ts));
+unix_ts_to_datetime(Ts) when is_integer(Ts) ->
+    Ts1970 = calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}),
+    calendar:gregorian_seconds_to_datetime(Ts1970 + Ts).
 
 split_one_prefix_many_space(Str) ->
     {SpaceSepArgs,PrefArg} = irc_parser:split($:, Str),
@@ -461,8 +481,16 @@ namreply_test() ->
                  parse_line(":ve.irc.dollyfish.net.nz 353 nembot = #dullbots :nembot @nem\r\n")).
 
 endofnames_test() ->
-    ?assertMatch(X when is_record(X, irc_cmd),    
+    ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line(":ve.irc.dollyfish.net.nz 366 nembot #dullbots :End of /NAMES list.\r\n")).
+
+topic_test() ->
+    ?assertMatch(X when is_record(X, irc_cmd),
+                 parse_line(":ve.irc.dollyfish.net.nz 332 nermerlin #dullbots :Foo.\r\n")).
+
+topicinfo_test() ->
+    ?assertMatch(X when is_record(X, irc_cmd),
+                 parse_line(":ve.irc.dollyfish.net.nz 333 nermerlin #dullbots nem 1180326256\r\n")).
 
 to_list_join_test() ->
     ?assertMatch("JOIN #c1,#c2\r\n",
