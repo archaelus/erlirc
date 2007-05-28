@@ -1,0 +1,2 @@
+Take all the commands with
+":server Numeric Nick Chan :Stuff" and implement a common parser for everything except Stuff.
