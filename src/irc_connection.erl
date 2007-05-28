@@ -55,10 +55,11 @@ start_link(Host, Port, Owner, Options) ->
                           []).
 
 send_line(Con, Line) ->
-    gen_server:call(Con, {line, Line}).
+    gen_server:cast(Con, {send_line, Line}).
 
 send_cmd(Con, Cmd = #irc_cmd{}) ->
-    gen_server:cast(Con, {send_cmd, Cmd}).
+    Line = irc_messages:to_list(Cmd),
+    send_line(Con, Line).
 
 close(Con) ->
     gen_server:call(Con, close).
@@ -92,7 +93,7 @@ handle_call({connected, Socket}, _From, State) ->
     inet:setopts(Socket, [{active, true}]),
     o_send(State, connected),
     {reply, ok, State#state{sock=Socket}};
-handle_call({line, Line}, _From, State = #state{sock=Sock}) ->
+handle_call({send_line, Line}, _From, State = #state{sock=Sock}) ->
     case gen_tcp:send(Sock, Line) of
         ok -> {reply, ok, State};
         {error, Reason} -> 
@@ -110,8 +111,10 @@ handle_call(Call, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
-handle_cast({send_cmd, Cmd}, State = #state{sock=Sock}) ->
+handle_cast({send_cmd, Cmd = #irc_cmd{}}, State) ->
     Line = irc_messages:to_list(Cmd),
+    handle_cast({send_line, Line}, State);
+handle_cast({send_line, Line}, State = #state{sock=Sock}) ->
     case gen_tcp:send(Sock, Line) of
         ok -> {noreply, State};
         {error, Reason} -> 
