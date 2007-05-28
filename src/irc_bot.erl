@@ -93,7 +93,7 @@ handle_call({disconnect, Host, Port}, _From, State = #state{connections=C}) ->
                    Host == H, P == Port],
     NewC = lists:foldl(fun (Pid, D) ->
                                unlink(Pid),
-                               irc_connection:send_cmd(Pid, #cmd{name=quit}),
+                               irc_connection:send_cmd(Pid, #irc_cmd{name=quit}),
                                dict:erase(Pid, D)
                        end,
                        C,
@@ -137,21 +137,22 @@ handle_info(Info, State) ->
     ?WARN("Unexpected info ~p", [Info]),
     {noreply, State}.
 
-handle_client_cmd(Pid, _Coninfo, {connected, _Pid}, State = #state{conf=Conf}) ->
-    irc_connection:send_cmd(Pid, #cmd{name=nick,
-                                      args=[{name, nick(Conf)}]}),
-    irc_connection:send_cmd(Pid, #cmd{name=user,
-                                      args=[{user_name, Conf#conf.username},
-                                            {real_name, Conf#conf.realname}]}),
+handle_client_cmd(Pid, _Coninfo, connected, State = #state{conf=Conf}) ->
+    irc_connection:send_cmd(Pid, #irc_cmd{name=nick,
+                                          args=[{name, nick(Conf)}]}),
+    irc_connection:send_cmd(Pid, #irc_cmd{name=user,
+                                          args=[{user_name, Conf#conf.username},
+                                                {real_name, Conf#conf.realname}]}),
     {noreply, State};
-handle_client_cmd(_Pid, #coninfo{host=Host,port=Port}, #cmd{name=notice,
-                                                      args=A}, State) ->
+handle_client_cmd(_Pid, #coninfo{host=Host,port=Port},
+                  #irc_cmd{name=notice,
+                           args=A}, State) ->
     ?INFO("~s:~p [~s] ~s", [Host, Port,
                             proplists:get_value(facility, A),
                             proplists:get_value(text, A)]),
     {noreply, State};
-handle_client_cmd(Pid, _cmdinfo, #cmd{name=ping,args=[{token, T}]}, S) ->
-    irc_connection:send_cmd(Pid, #cmd{name=pong, args=[{token, T}]}),
+handle_client_cmd(Pid, _cmdinfo, #irc_cmd{name=ping,args=[{token, T}]}, S) ->
+    irc_connection:send_cmd(Pid, #irc_cmd{name=pong, args=[{token, T}]}),
     {noreply, S};
 
 

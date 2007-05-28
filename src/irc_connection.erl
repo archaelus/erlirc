@@ -57,7 +57,7 @@ start_link(Host, Port, Owner, Options) ->
 send_line(Con, Line) ->
     gen_server:call(Con, {line, Line}).
 
-send_cmd(Con, Cmd = #cmd{}) ->
+send_cmd(Con, Cmd = #irc_cmd{}) ->
     gen_server:cast(Con, {send_cmd, Cmd}).
 
 close(Con) ->

@@ -14,11 +14,12 @@
                mode,
                description}).
 
--record(cmd, {raw,
-              source,
-              target,
-              name,
-              args}).
+-record(irc_cmd, {raw,
+                  source,
+                  target,
+                  name,
+                  args = [],
+                  ctcp}).
 
 -record(p10server, {numeric,
                     name,
@@ -40,3 +41,6 @@
                users = [],
                voices = [],
                ops = []}).
+
+-record(ctcp_cmd, {name,
+                   args = []}).

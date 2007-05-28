@@ -8,7 +8,9 @@
 -module(irc_commands).
 
 %% API
--export([from_list/1]).
+-export([from_list/1,
+         ctcp_from_list/1,
+         to_list/1]).
 
 %%====================================================================
 %% API
@@ -155,7 +157,22 @@ from_list("SERVICE") -> service;
 from_list("NJOIN") -> njoin;
 from_list("SERVLIST") -> servlist;
 from_list("SQUERY") -> squery;
-from_list(_) -> invalid_command.
+from_list(Cmd) -> throw({invalid_command, Cmd}).
+
+ctcp_from_list("ACTION") -> action;
+ctcp_from_list("FINGER") -> finger;
+ctcp_from_list("VERSION") -> version;
+ctcp_from_list("SOURCE") -> source;
+ctcp_from_list("USERINFO") -> userinfo;
+ctcp_from_list("CLIENTINFO") -> clientinfo;
+ctcp_from_list("ERRMSG") -> errmsg;
+ctcp_from_list("PING") -> ping;
+ctcp_from_list("TIME") -> time;
+ctcp_from_list(Cmd) -> throw({invalid_command, Cmd}).
+
+to_list(privmsg) -> "PRIVMSG";
+to_list(notice) -> "NOTICE";
+to_list(Cmd) -> throw({invalid_command, Cmd}).
 
 %%====================================================================
 %% Internal functions

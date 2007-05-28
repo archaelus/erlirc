@@ -66,7 +66,7 @@ start_link(Nick, Username, Realname, Host, Port, Options) ->
 shutdown(Pid) ->
     gen_fsm:sync_send_all_state_event(Pid, shutdown).
 
-send(Pid, C = #cmd{}) ->
+send(Pid, C = #irc_cmd{}) ->
     gen_fsm:send_all_state_event(Pid, {to_irc, C}).
 
 %%====================================================================
@@ -105,39 +105,71 @@ connecting(timeout, State = #state{conf=Conf}) ->
     {next_state, wait_connected, State#state{con=Pid}}.
 
 wait_connected({irc, Pid, connected}, State = #state{conf=Conf}) ->
-    irc_connection:send_cmd(Pid, #cmd{name=nick,
-                                      args=[{name, State#state.nick}]}),
-    irc_connection:send_cmd(Pid, #cmd{name=user,
-                                      args=[{user_name, Conf#conf.username},
-                                            {real_name, Conf#conf.realname}]}),
+    irc_connection:send_cmd(Pid, #irc_cmd{name=nick,
+                                          args=[{name, State#state.nick}]}),
+    irc_connection:send_cmd(Pid, #irc_cmd{name=user,
+                                          args=[{user_name, Conf#conf.username},
+                                                {real_name, Conf#conf.realname}]}),
     {next_state, welcome, State}.
 
-welcome({irc, Pid, #cmd{name=ping, args=[{token, T}]}}, State) ->
-    irc_connection:send_cmd(Pid, #cmd{name=pong,
-                                      args=[{token, T}]}),
+welcome({irc, Pid, #irc_cmd{source=S, name=privmsg, ctcp=[#ctcp_cmd{name=version}]}}, State) ->
+    irc_connection:send_cmd(Pid, #irc_cmd{name=notice,
+                                          target=S#user.nick,
+                                          args=[{client, atom_to_list(?MODULE)},
+                                                {version, "0.0.1"},
+                                                {environment, "erlang"}]}),
     {next_state, welcome, State};
-welcome({irc, _Pid, C = #cmd{name=welcome, args=A}}, State) ->
-    ?INFO("~s", [C#cmd.raw]),
+welcome({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->
+    irc_connection:send_cmd(Pid, #irc_cmd{name=pong,
+                                          args=[{token, T}]}),
+    {next_state, welcome, State};
+welcome({irc, _Pid, C = #irc_cmd{name=welcome, args=A}}, State) ->
+    ?INFO("~s", [C#irc_cmd.raw]),
     {next_state, welcome,
      State#state{nick=proplists:get_value(target, A, State#state.nick)}};
-welcome({irc, _Pid, C = #cmd{name=endofmotd}}, State) ->
-    ?INFO("~s", [C#cmd.raw]),
+welcome({irc, _Pid, C = #irc_cmd{name=endofmotd}}, State) ->
+    ?INFO("~s", [C#irc_cmd.raw]),
     ?INFO("Now connected.", []),
     {next_state, connected, State};
-welcome({irc, _Pid, C = #cmd{}}, State) ->
-    ?INFO("~s", [C#cmd.raw]),
+welcome({irc, _Pid, C = #irc_cmd{}}, State) ->
+    ?INFO("~s", [C#irc_cmd.raw]),
     {next_state, welcome, State}.
 
-connected({irc, _Pid, C = #cmd{name=privmsg, target=T, args=[{message,M}]}}, State) ->
-    U = C#cmd.source,
+
+connected({irc, Pid, C = #irc_cmd{source=S, name=privmsg,
+                                  target=T,
+                                  args=[{message, M}],
+                                  ctcp=[#ctcp_cmd{name=version}]}}, State) ->
+    CtcpReply = #ctcp_cmd{name=version,
+                          args=[{client, atom_to_list(?MODULE)},
+                                {version, "0.0.1"},
+                                {environment, "erlang"}]},
+    ?INFO("CTCP requests: ~p~nCTCP reply: ~p", [C#irc_cmd.ctcp, CtcpReply]),
+    ?INFO("~s!~~~s@~s -> ~s: ~s", [S#user.nick,S#user.user,S#user.host,T,M]),
+    irc_connection:send_cmd(Pid, #irc_cmd{name=notice,
+                                          target=S#user.nick,
+                                          args=[{message, ""}],
+                                          ctcp=[CtcpReply]}),
+    {next_state, connected, State};
+connected({irc, _Pid, C = #irc_cmd{name=privmsg, target=T,
+                                   args=[{message,M}], ctcp=undefined}}, State) ->
+    U = C#irc_cmd.source,
     ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.user,U#user.host,T,M]),
     {next_state, connected, State};
-connected({irc, Pid, #cmd{name=ping, args=[{token, T}]}}, State) ->
-    irc_connection:send_cmd(Pid, #cmd{name=pong,
-                                      args=[{token, T}]}),
+
+connected({irc, _Pid, C = #irc_cmd{name=privmsg, target=T,
+                                   args=A, ctcp=Ctcp}}, State) ->
+    U = C#irc_cmd.source,
+    M = proplists:get_value(message, A, "<no message>"),
+    ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.user,U#user.host,T,M]),
+    ?INFO("CTCP requests: ~p", [Ctcp]),
+    {next_state, connected, State};
+connected({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->
+    irc_connection:send_cmd(Pid, #irc_cmd{name=pong,
+                                          args=[{token, T}]}),
     {next_state, connected, State};
 connected({irc, _Pid, C}, State) ->
-    ?INFO("(~p) ~s", [C#cmd.name, C#cmd.raw]),
+    ?INFO("(~p) ~s~n~p", [C#irc_cmd.name, C#irc_cmd.raw, C]),
     {next_state, connected, State}.
     
 

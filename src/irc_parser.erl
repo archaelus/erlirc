@@ -14,12 +14,12 @@
 -define(IS_DIGIT(Var), $0 =< Var, Var =< $9).
 
 parse_line(Line) ->
-    parse_line(Line, #cmd{raw=Line}).
+    parse_line(Line, #irc_cmd{raw=Line}).
 
 parse_line([A,B,C,D,E,$\s|Rest], Cmd) ->
     case irc_numerics:p10b64_to_int([A,B,C,D,E]) of 
         Num when is_integer(Num) ->
-            parse_command_part(Rest, Cmd#cmd{source=#user{numeric=Num}});
+            parse_command_part(Rest, Cmd#irc_cmd{source=#user{numeric=Num}});
         {error, Reason} ->
             ?ERR("Need to fix this code.", []),
             erlang:error(Reason)
@@ -32,7 +32,7 @@ parse_line([A,B,$\s|Rest], Cmd) when ((A == $[) or (A == $]) or
                                       (($0 =< B) and (B =< $9)) or
                                       (($a =< B) and (B =< $z)) or
                                       (($A =< B) and (B =< $Z))) ->
-    parse_command_part(Rest, Cmd#cmd{source=#p10server{numeric=irc_numerics:p10b64_to_int([A,B])}});
+    parse_command_part(Rest, Cmd#irc_cmd{source=#p10server{numeric=irc_numerics:p10b64_to_int([A,B])}});
 parse_line([$:|Rest], Cmd) ->
     parse_prefix_part(Rest, Cmd);
 parse_line(Line, Cmd) ->
@@ -40,43 +40,43 @@ parse_line(Line, Cmd) ->
 
 parse_prefix_part(Line, Cmd) ->
     {Prefix, Rest} = split(Line),
-    CmdWithUser = parse_prefix(Prefix, Cmd#cmd{source=#user{}}),
+    CmdWithUser = parse_prefix(Prefix, Cmd#irc_cmd{source=#user{}}),
     parse_command_part(Rest, CmdWithUser).
 
-parse_prefix(Prefix, #cmd{source=User} = Cmd) ->
+parse_prefix(Prefix, #irc_cmd{source=User} = Cmd) ->
     case string:tokens(Prefix, "@") of
         [Nick] -> 
             case lists:member($., Prefix) of
                 true ->
-                    Cmd#cmd{source=#server{host=Nick}};
+                    Cmd#irc_cmd{source=#server{host=Nick}};
                 false ->
-                    Cmd#cmd{source=User#user{nick=Nick}}
+                    Cmd#irc_cmd{source=User#user{nick=Nick}}
             end;
         [NickSpec, HostSpec] -> 
             case string:tokens(NickSpec, "!") of
                 [Nick, [$~|HostUser]] ->
-                    Cmd#cmd{source=User#user{nick=Nick, user=HostUser, host=HostSpec}};
+                    Cmd#irc_cmd{source=User#user{nick=Nick, user=HostUser, host=HostSpec}};
                 [Nick, HostUser] ->
-                    Cmd#cmd{source=User#user{nick=Nick, user=HostUser, host=HostSpec}};
+                    Cmd#irc_cmd{source=User#user{nick=Nick, user=HostUser, host=HostSpec}};
                 [_Host] ->
-                    Cmd#cmd{source=User#user{nick=NickSpec, host=HostSpec}}
+                    Cmd#irc_cmd{source=User#user{nick=NickSpec, host=HostSpec}}
             end
     end.
 
 parse_command_part([D1,D2,D3,$\s|Rest], Cmd) when ?IS_DIGIT(D1),
                                               ?IS_DIGIT(D2),
                                               ?IS_DIGIT(D3) ->
-    Cmd#cmd{name=irc_numerics:numeric_to_atom([D1,D2,D3]),
+    Cmd#irc_cmd{name=irc_numerics:numeric_to_atom([D1,D2,D3]),
             args=nonl(Rest)};
 parse_command_part([D1,D2,D3|Rest], Cmd) when ?IS_DIGIT(D1),
                                               ?IS_DIGIT(D2),
                                               ?IS_DIGIT(D3) ->
-    Cmd#cmd{name=irc_numerics:numeric_to_atom([D1,D2,D3]),
-            args=nonl(Rest)};
+    Cmd#irc_cmd{name=irc_numerics:numeric_to_atom([D1,D2,D3]),
+                args=nonl(Rest)};
 parse_command_part(Rest, Cmd) ->
     {CommandName, Args} = split(Rest),
-    Cmd#cmd{name=irc_commands:from_list(CommandName),
-            args=nonl(Args)}.
+    Cmd#irc_cmd{name=irc_commands:from_list(CommandName),
+                args=nonl(Args)}.
 
 split(Line) ->
     split($\s, Line).
@@ -84,8 +84,12 @@ split(Line) ->
 split(Char, Line) when is_integer(Char) ->
     split(fun (X) when X == Char -> false; (_) -> true end, Line);
 split(Fun, Line) when is_function(Fun) ->
-    {First, Second} = lists:splitwith(Fun, Line),
-    {First, tl(Second)}.
+    case lists:splitwith(Fun, Line) of
+        {First, Second} when length(Second) > 0 ->            
+            {First, tl(Second)};
+        {First, []} ->
+            {First, []}
+    end.
     
 split_test() ->
     ?assertMatch({"this", "is a test"}, split("this is a test")).
