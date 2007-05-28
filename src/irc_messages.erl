@@ -37,8 +37,11 @@ parse_args(Cmd) when is_record(Cmd, irc_cmd) ->
 
 parse_args(error, ":" ++ Args, Cmd) ->
     parse_error(Cmd, lists:split(string:chr(Args, $:), Args));
-parse_args(notice, Args, Cmd) ->
-    parse_notice(Cmd, string:tokens(Args, ":"));
+
+parse_args(Name, Args, Cmd) when Name == notice; Name == privmsg ->
+    {Target, Msg} = irc_parser:split($:, Args),
+    parse_notice_or_privmsg(Cmd#irc_cmd{target=string:strip(Target, right, $\s)},
+                            Msg);
 
 parse_args(needmoreparams, Args, Cmd) ->
     parse_error(needmoreparams, string:tokens(Args, ":"), Cmd);
@@ -60,25 +63,24 @@ parse_args(burst, Args, Cmd) ->
 parse_args(PingPong, [$:|Token], Cmd) when PingPong == ping; PingPong == pong ->
     Cmd#irc_cmd{args=[{token , Token}]};
 
-parse_args(privmsg, Args, Cmd) ->
-    {Target, Msg} = irc_parser:split($:, Args),
-    parse_privmsg(Cmd#irc_cmd{target=string:strip(Target, right, $\s)},
-                  Msg);
 
 parse_args(join, [$:|Chans], Cmd) ->
     Cmd#irc_cmd{args=[{channels, string:tokens(Chans, ",")}]};
 
-parse_args(notopic, Args, Cmd) ->
+parse_args(notopic, _Args, Cmd) ->
     Cmd;
 parse_args(topic, [$:|Topic], Cmd) ->
     Cmd#irc_cmd{args=[{topic, Topic}]};
 
 parse_args(namreply, Arg, Cmd) ->
-    {NickChan, MemberStr} = irc_parser:split($:, Arg),
-    {Nick, Chan} = irc_parser:split($=, NickChan),
-    Members = string:tokens(MemberStr, " "),
-    Cmd#irc_cmd{args=[{channel, Chan},
-                      {members, Members}]};
+    case string:tokens(Arg," ") of
+        [Nick, ChanType, Chan | MemberStrs] when length(MemberStrs) >= 1 ->
+            Members = [string:strip(hd(MemberStrs), left, $:)|tl(MemberStrs)],
+            Cmd#irc_cmd{args=[{channel, string:strip(Chan, right, $\s)},
+                              {members, lists:map(fun parse_nick/1, Members)},
+                              {channel_type, parse_chantype(ChanType)}],
+                        target=Nick}
+    end;
 
 parse_args(endofnames, Arg, Cmd) ->
     {Chan, Message} = irc_parser:split($:, Arg),
@@ -104,10 +106,23 @@ parse_args(Name, Args, Cmd) when Name == welcome;
     Cmd#irc_cmd{target=Target,
                 args=[{message, Msg}]}.
 
+%%--------------------------------------------------------------------
+
+parse_nick([$@|Nick]) ->
+    {op, Nick};
+parse_nick([$+|Nick]) ->
+    {voice, Nick};
+parse_nick(Nick) ->
+    {user, Nick}.
+
+parse_chantype("@") -> secret;
+parse_chantype("*") -> private;
+parse_chantype("=") -> public;
+parse_chantype(T) -> throw({unknown_chantype, T}).
 
 %%--------------------------------------------------------------------
 
-parse_privmsg(Cmd, Msg) ->
+parse_notice_or_privmsg(Cmd, Msg) ->
     case lists:member(1, Msg) of
         true -> parse_ctcp_msg(Cmd, Msg);
         false -> Cmd#irc_cmd{args=[{message, Msg}]}
@@ -207,14 +222,6 @@ parse_error(Code, [Info, Text], Cmd) ->
                               {command, Command},
                               {text, Text}]}
     end.
-
-
-%%--------------------------------------------------------------------
-parse_notice(Cmd, [Target, Text]) ->
-    Cmd#irc_cmd{args = [{text, Text}], target=Target};
-parse_notice(Cmd, [Target | Text]) ->
-    Cmd#irc_cmd{target = string:strip(Target, right, $\s),
-                args = [{text, irc_parser:join($:, Text)}]}.
 
 %%--------------------------------------------------------------------
 parse_server(Cmd, Args) when is_list(Args) ->
@@ -372,6 +379,21 @@ to_list(Name, Args,
                  [{ctcp, ctcp_to_list(C)}||C<-Ctcp]],
     lists:flatten([irc_commands:to_list(Name),
                    " ", nick(T), " :", encode_ctcp_delims(CtcpParts)]);
+
+to_list(part, Args, _Cmd) ->
+    C = proplists:get_value(channels, Args, []),
+    M = case proplists:get_value(message, Args) of
+            undefined -> "";
+            List -> " :" ++ List
+        end,
+    lists:flatten(["PART ", irc_parser:join(",", C), M]);
+
+to_list(quit, Args, _Cmd) ->
+    M = case proplists:get_value(message, Args) of
+            undefined -> "";
+            List -> " :" ++ List
+        end,
+    lists:flatten(["QUIT", M]);
 
 to_list(user, Args, _Cmd) ->
     Name = proplists:get_value(user_name, Args),
