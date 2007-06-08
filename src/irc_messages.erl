@@ -67,6 +67,11 @@ parse_args(PingPong, [$:|Token], Cmd) when PingPong == ping; PingPong == pong ->
 parse_args(join, [$:|Chans], Cmd) ->
     Cmd#irc_cmd{args=[{channels, string:tokens(Chans, ",")}]};
 
+parse_args(part, Args, Cmd) ->
+    {Chans, Message} = irc_parser:split($:, Args),
+    Cmd#irc_cmd{args=[{channels, string:tokens(string:strip(Chans,both,$\s), ",")},
+                      {message, Message}]};
+
 parse_args(notopic, _Args, Cmd) ->
     Cmd;
 parse_args(topic, Args, Cmd) ->
@@ -102,24 +107,27 @@ parse_args(endofnames, Arg, Cmd) ->
                       {message, Message}],
                 target=Nick};
 
-parse_args(Name, Args, Cmd) when Name == welcome;
-                                 Name == yourhost;
-                                 Name == created;
-                                 Name == myinfo;
-                                 Name == isupport;
-                                 Name == luserclient;
-                                 Name == luserop;
-                                 Name == luserchannels;
-                                 Name == luserme;
-                                 Name == luserconns;
-                                 Name == motdstart;
-                                 Name == motd;
-                                 Name == endofmotd;
-                                 Name == n_global;
-                                 Name == n_local ->
+%% parse_args(Name, Args, Cmd) when Name == welcome
+%%                                  ;Name == yourhost
+%%                                  ;Name == created
+%%                                  ;Name == myinfo
+%%                                  ;Name == isupport
+%%                                  ;Name == luserclient
+%%                                  ;Name == luserop
+%%                                  ;Name == luserchannels
+%%                                  ;Name == luserme
+%%                                  ;Name == luserconns
+%%                                  ;Name == motdstart
+%%                                  ;Name == motd
+%%                                  ;Name == endofmotd
+%%                                  ;Name == n_global
+%%                                  ;Name == n_local
+%%                                  ;Name == nomotd
+%%                                  ->
+parse_args(_Name, Args, Cmd) ->
     {Target, Msg} = irc_parser:split(Args),
     Cmd#irc_cmd{target=Target,
-                args=[{message, Msg}]}.
+                args=[{message, string:strip(Msg, left, $:)}]}.
 
 %%--------------------------------------------------------------------
 
@@ -292,30 +300,31 @@ parse_burst(Cmd, [Name, ChanTS, UserData]) ->
 
 parse_burst_userdata(#irc_cmd{target = Chan} = Cmd, ["o," ++ Users | Rest]) ->
     UserNumerics = string:tokens(Users, ","),
-    OldOps = Chan#chan.ops,
-    parse_burst_userdata(Cmd#irc_cmd{target=Chan#chan{ops=lists:umerge(UserNumerics,
-                                                                       OldOps)}},
+    NewMembers = [{op, N} || N <- UserNumerics],
+    OldMembers = Chan#chan.members,
+    parse_burst_userdata(Cmd#irc_cmd{target=Chan#chan{members=lists:umerge(NewMembers,
+                                                                           OldMembers)}},
                          Rest);
 parse_burst_userdata(#irc_cmd{target = Chan} = Cmd, ["v," ++ Users | Rest]) ->
     UserNumerics = string:tokens(Users, ","),
-    OldVoices = Chan#chan.voices,
-    parse_burst_userdata(Cmd#irc_cmd{target=Chan#chan{voices=lists:umerge(UserNumerics,
-                                                                          OldVoices)}},
+    NewMembers = [{voice, N} || N <- UserNumerics],
+    OldMembers = Chan#chan.members,
+    parse_burst_userdata(Cmd#irc_cmd{target=Chan#chan{members=lists:umerge(NewMembers,
+                                                                           OldMembers)}},
                          Rest);
 parse_burst_userdata(#irc_cmd{target = Chan} = Cmd, ["ov," ++ Users | Rest]) ->
     UserNumerics = string:tokens(Users, ","),
-    OldOps = Chan#chan.ops,
-    OldVoices = Chan#chan.voices,
-    parse_burst_userdata(Cmd#irc_cmd{target=Chan#chan{voices=lists:umerge(UserNumerics,
-                                                                          OldVoices),
-                                                      ops=lists:umerge(UserNumerics,
-                                                                       OldOps)}},
+    NewMembers = [{op_voice, N} || N <- UserNumerics],
+    OldMembers = Chan#chan.members,
+    parse_burst_userdata(Cmd#irc_cmd{target=Chan#chan{members=lists:umerge(NewMembers,
+                                                                           OldMembers)}},
                          Rest);
 parse_burst_userdata(#irc_cmd{target = Chan} = Cmd, [Users | Rest]) ->
     UserNumerics = string:tokens(Users, ","),
-    OldUsers = Chan#chan.users,
-    parse_burst_userdata(Cmd#irc_cmd{target=Chan#chan{users=lists:umerge(UserNumerics,
-                                                                         OldUsers)}},
+    NewMembers = [{user, N} || N <- UserNumerics],
+    OldMembers = Chan#chan.members,
+    parse_burst_userdata(Cmd#irc_cmd{target=Chan#chan{members=lists:umerge(NewMembers,
+                                                                           OldMembers)}},
                          Rest);
 parse_burst_userdata(Cmd, []) ->
     Cmd.
