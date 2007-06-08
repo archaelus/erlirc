@@ -22,7 +22,9 @@ join(Channel) ->
 
 part(Channel) ->
     #irc_cmd{name=part,args=[{channels, [Channel]}]}.
-
+part(Channel, Message) ->
+    #irc_cmd{name=part,args=[{channels, [Channel]},
+                             {message, Message}]}.
 
 %%====================================================================
 %% Internal functions
