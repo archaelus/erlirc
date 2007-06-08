@@ -38,9 +38,7 @@
                chan_ts,
                mode,
                topic,
-               users = [],
-               voices = [],
-               ops = []}).
+               members = []}).
 
 -record(ctcp_cmd, {name,
                    args = []}).
