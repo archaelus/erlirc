@@ -18,12 +18,14 @@
 -export([start_link/2,
          start_link/6,
          shutdown/1,
-         send/2]).
+         send/2,
+         reset_to_connected/1]).
 
 -export([connecting/2,
          wait_connected/2,
          welcome/2,
-         connected/2]).
+         connected/2,
+         joining_channel/2]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
@@ -69,6 +71,9 @@ shutdown(Pid) ->
 send(Pid, C = #irc_cmd{}) ->
     gen_fsm:send_all_state_event(Pid, {to_irc, C}).
 
+reset_to_connected(Pid) ->
+    gen_fsm:send_all_state_event(Pid, reset_to_connected).
+
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -82,7 +87,10 @@ send(Pid, C = #irc_cmd{}) ->
 %% initialize. 
 %%--------------------------------------------------------------------
 init([Conf = #conf{}, Nick]) ->
-    {ok, connecting, #state{conf=Conf, nick=Nick, channels=[]}, 0}.
+    {ok, connecting,
+     #state{conf=Conf, nick=Nick,
+            channels=dict:new()},
+     0}.
 
 %%--------------------------------------------------------------------
 %% Function: 
@@ -130,7 +138,7 @@ welcome({irc, _Pid, C = #irc_cmd{name=welcome, args=A}}, State) ->
     ?INFO("~s", [C#irc_cmd.raw]),
     {next_state, welcome,
      State#state{nick=proplists:get_value(target, A, State#state.nick)}};
-welcome({irc, _Pid, C = #irc_cmd{name=endofmotd}}, State) ->
+welcome({irc, _Pid, C = #irc_cmd{name=MOTD}}, State) when MOTD == endofmotd; MOTD == nomotd ->
     ?INFO("~s", [C#irc_cmd.raw]),
     ?INFO("Now connected.", []),
     {next_state, connected, State};
@@ -171,10 +179,32 @@ connected({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->
     irc_connection:send_cmd(Pid, #irc_cmd{name=pong,
                                           args=[{token, T}]}),
     {next_state, connected, State};
+connected(E = {irc, _Pid, #irc_cmd{name=join}}, State) ->
+    handle_join(E, State);
 connected({irc, _Pid, C}, State) ->
     ?INFO("(~p) ~s~n~p", [C#irc_cmd.name, C#irc_cmd.raw, C]),
     {next_state, connected, State}.
-    
+
+handle_join({irc, _Pid, C = #irc_cmd{name=join, source=#user{nick=Me},
+                                     args=[{channels, [Chan]}]}},
+            State = #state{nick=Me,channels=Chans}) ->
+    ?INFO("Joining ~s~nRaw: ~p", [Chan, C#irc_cmd.raw]),
+    {next_state, joining_channel,
+     State#state{channels=dict:store(Chan, #chan{name=Chan}, Chans)}};
+
+handle_join({irc, _Pid, C = #irc_cmd{name=join, source=#user{nick=Nick},
+                                     args=[{channels, [Chan]}]}},
+            State = #state{channels=Chans}) ->
+    ?INFO("~s joined ~s.~nRaw: ~p", [Nick, Chan, C#irc_cmd.raw]),
+    ChanR = dict:fetch(Chan, Chans),
+    NewChanR = ChanR#chan{members=[{user, Nick}|ChanR#chan.members]},
+    {next_state, connected,
+     State#state{channels=dict:store(Chan, NewChanR, Chans)}}.
+
+joining_channel({irc, _Pid, C = #irc_cmd{args=A}},
+                State = #state{channels=Chans}) ->
+    ?INFO("Joining: ~p~nChans: ~p", [C, dict:to_list(Chans)]),
+    {next_state, joining_channel, State}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -203,6 +233,8 @@ connected({irc, _Pid, C}, State) ->
 %% gen_fsm:send_all_state_event/2, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
+handle_event(reset_to_connected, _State, State) ->
+    {next_state, connected, State};
 handle_event({to_irc, Cmd}, StateName, State = #state{con=Pid}) when is_pid(Pid) ->
     irc_connection:send_cmd(Pid, Cmd),
     {next_state, StateName, State};
