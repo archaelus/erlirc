@@ -38,6 +38,7 @@
                chan_ts,
                mode,
                topic,
+               type = public,
                members = []}).
 
 -record(ctcp_cmd, {name,
