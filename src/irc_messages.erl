@@ -173,7 +173,7 @@ parse_ctcp_cmd(finger, C, [$:|Msg]) ->
     C#ctcp_cmd{args=[{info, Msg}]};
 parse_ctcp_cmd(version, C, Msg) ->
     case string:tokens(Msg, ":") of
-        {Client, Version, Environment} ->
+        [Client, Version, Environment] ->
             C#ctcp_cmd{args=[{client, Client},
                              {version, Version},
                              {environment, Environment}]};
