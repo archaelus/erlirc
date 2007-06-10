@@ -181,30 +181,68 @@ connected({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->
     {next_state, connected, State};
 connected(E = {irc, _Pid, #irc_cmd{name=join}}, State) ->
     handle_join(E, State);
+connected(E = {irc, _Pid, #irc_cmd{name=part}}, State) ->
+    handle_part(E, State);
 connected({irc, _Pid, C}, State) ->
     ?INFO("(~p) ~s~n~p", [C#irc_cmd.name, C#irc_cmd.raw, C]),
     {next_state, connected, State}.
 
-handle_join({irc, _Pid, C = #irc_cmd{name=join, source=#user{nick=Me},
-                                     args=[{channels, [Chan]}]}},
+handle_join({irc, _Pid, #irc_cmd{source=#user{nick=Me},
+                                 args=[{channels, [Chan]}]}},
             State = #state{nick=Me,channels=Chans}) ->
-    ?INFO("Joining ~s~nRaw: ~p", [Chan, C#irc_cmd.raw]),
+    ?INFO("Joining ~s", [Chan]),
     {next_state, joining_channel,
      State#state{channels=dict:store(Chan, #chan{name=Chan}, Chans)}};
 
-handle_join({irc, _Pid, C = #irc_cmd{name=join, source=#user{nick=Nick},
-                                     args=[{channels, [Chan]}]}},
+handle_join({irc, _Pid, #irc_cmd{source=#user{nick=Nick},
+                                 args=[{channels, [Chan]}]}},
             State = #state{channels=Chans}) ->
-    ?INFO("~s joined ~s.~nRaw: ~p", [Nick, Chan, C#irc_cmd.raw]),
+    ?INFO("~s joined ~s.", [Nick, Chan]),
     ChanR = dict:fetch(Chan, Chans),
     NewChanR = ChanR#chan{members=[{user, Nick}|ChanR#chan.members]},
     {next_state, connected,
      State#state{channels=dict:store(Chan, NewChanR, Chans)}}.
 
-joining_channel({irc, _Pid, C = #irc_cmd{args=A}},
+handle_part({irc, _Pid, #irc_cmd{source=#user{nick=Me},
+                                 args=[{channels, [Chan]}|_]}},
+            State = #state{nick=Me,channels=Chans}) ->
+    ?INFO("Parted ~s.", [Chan]),
+    {next_state, connected,
+     State#state{channels=dict:erase(Chan, Chans)}};
+handle_part({irc, _Pid, #irc_cmd{source=#user{nick=Nick},
+                                 args=[{channels, [Chan]},
+                                       {message, Msg}]}},
+            State = #state{channels=Chans}) ->
+    ?INFO("~s parted ~s (~s).", [Nick, Chan, Msg]),
+    ChanR = dict:fetch(Chan, Chans),
+    NewChanR = ChanR#chan{members=[M ||
+                                      M = {_Type, N} <- ChanR#chan.members
+                                          ,N /= Nick]},
+    {next_state, connectead,
+     State#state{channels=dict:store(Chan, NewChanR, Chans)}}.
+
+joining_channel({irc, _Pid, #irc_cmd{name=endofnames,args=A}},
+                State) ->
+    Chan = proplists:get_value(channel, A, "ERROR - No channel"),
+    ?INFO("Finished joining ~s.", [Chan]),
+    {next_state, connected, State};
+joining_channel({irc, _Pid, C = #irc_cmd{name=namreply, args=A}},
                 State = #state{channels=Chans}) ->
-    ?INFO("Joining: ~p~nChans: ~p", [C, dict:to_list(Chans)]),
-    {next_state, joining_channel, State}.
+    Members = proplists:get_value(members, A, []),
+    Type = proplists:get_value(channel_type, A, undefined),
+    ChanName = proplists:get_value(channel, A, "ERROR - No channel"),
+    Chan = dict:fetch(ChanName, Chans),
+    NewChans = dict:store(ChanName, 
+                          Chan#chan{members=lists:usort([Members|Chan#chan.members]),
+                                    type=Type},
+                          Chans),
+    ?INFO("Joining: ~s~nMembers: ~p", [ChanName,
+                                       lists:usort([Members|Chan#chan.members])]),
+    {next_state, joining_channel, State#state{channels=NewChans}};
+joining_channel(E = {irc, _Pid, C}, State) ->
+    ?INFO("Unknown message in join state, retreating to connected state.~n~p",
+          [C#irc_cmd.raw]),
+    connected(E, State).
 
 %%--------------------------------------------------------------------
 %% Function:
