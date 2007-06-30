@@ -517,3 +517,7 @@ encode_ctcp_delims_test() ->
                  encode_ctcp_delims([{ctcp, "VERSION"}])), 
     ?assertMatch("This is a " ++ [1] ++ "VERSION" ++ [1] ++ "test.",
                  encode_ctcp_delims([{non_ctcp, "This is a "}, {ctcp, "VERSION"}, {non_ctcp, "test."}])).
+
+nick_reply_test() ->
+    ?assertMatch(#irc_cmd{name=nick, args=[{name, "nemor"}]},
+                 parse_line(":nemerlng!nemerlng@121-73-3-252.cable.telstraclear.net NICK :nemor\r\n")).
