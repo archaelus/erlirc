@@ -26,6 +26,9 @@ part(Channel, Message) ->
     #irc_cmd{name=part,args=[{channels, [Channel]},
                              {message, Message}]}.
 
+nick(Nick) ->
+    #irc_cmd{name=nick,args=[{name, Nick}]}.
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
