@@ -12,7 +12,8 @@
                host,
                authname,
                mode,
-               description}).
+               description,
+               info}).
 
 -record(irc_cmd, {raw,
                   source,
@@ -33,13 +34,19 @@
 
 -record(server, {host}).
 
+-record(topic, {text,
+                topic_ts,
+                author}).
+
 -record(chan, {numeric,
                name,
                chan_ts,
                mode,
-               topic,
+               topic = #topic{},
                type = public,
-               members = []}).
+               members = [],
+               info}).
+
 
 -record(ctcp_cmd, {name,
                    args = []}).
