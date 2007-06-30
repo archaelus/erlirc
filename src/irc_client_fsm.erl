@@ -16,10 +16,14 @@
 
 %% API
 -export([start_link/2,
+         start_link/3,
          start_link/6,
          shutdown/1,
          send/2,
-         reset_to_connected/1]).
+         reset_to_connected/1,
+         nick/1,
+         channels/1
+        ]).
 
 -export([connecting/2,
          wait_connected/2,
@@ -55,7 +59,10 @@
 %% does not return until Module:init/1 has returned.  
 %%--------------------------------------------------------------------
 start_link(Nick, Host) ->
-    start_link(Nick, Nick, Nick, Host, 6667, [{reconnect, 60}]).
+    start_link(Nick, Host, 6667).
+
+start_link(Nick, Host, Port) ->
+    start_link(Nick, Nick, Nick, Host, Port, [{reconnect, 60}]).
 
 start_link(Nick, Username, Realname, Host, Port, Options) ->
     gen_fsm:start_link(?MODULE, [#conf{host=Host,
@@ -73,6 +80,12 @@ send(Pid, C = #irc_cmd{}) ->
 
 reset_to_connected(Pid) ->
     gen_fsm:send_all_state_event(Pid, reset_to_connected).
+
+nick(Pid) ->
+    gen_fsm:sync_send_all_state_event(Pid, nick).
+
+channels(Pid) ->
+    gen_fsm:sync_send_all_state_event(Pid, channels).
 
 %%====================================================================
 %% gen_fsm callbacks
@@ -226,7 +239,7 @@ joining_channel({irc, _Pid, #irc_cmd{name=endofnames,args=A}},
     Chan = proplists:get_value(channel, A, "ERROR - No channel"),
     ?INFO("Finished joining ~s.", [Chan]),
     {next_state, connected, State};
-joining_channel({irc, _Pid, C = #irc_cmd{name=namreply, args=A}},
+joining_channel({irc, _Pid, #irc_cmd{name=namreply, args=A}},
                 State = #state{channels=Chans}) ->
     Members = proplists:get_value(members, A, []),
     Type = proplists:get_value(channel_type, A, undefined),
@@ -238,6 +251,29 @@ joining_channel({irc, _Pid, C = #irc_cmd{name=namreply, args=A}},
                           Chans),
     ?INFO("Joining: ~s~nMembers: ~p", [ChanName,
                                        lists:usort([Members|Chan#chan.members])]),
+    {next_state, joining_channel, State#state{channels=NewChans}};
+joining_channel({irc, _Pid, #irc_cmd{name=topic, args=A}},
+                State = #state{channels=Chans}) ->
+    Topic = proplists:get_value(topic, A),
+    ChanName = proplists:get_value(channel, A),
+    Chan = dict:fetch(ChanName, Chans),
+    NewChans = dict:store(ChanName, 
+                          Chan#chan{topic=(Chan#chan.topic)#topic{text=Topic}},
+                          Chans),
+    {next_state, joining_channel, State#state{channels=NewChans}};
+joining_channel({irc, _Pid, #irc_cmd{name=topicinfo, args=A}},
+                State = #state{channels=Chans}) ->
+    TS = proplists:get_value(topic_set_at, A),
+    Author = proplists:get_value(topic_set_by, A),
+    ChanName = proplists:get_value(channel, A),
+    Chan = dict:fetch(ChanName, Chans),
+    NewChan = Chan#chan{topic=(Chan#chan.topic)#topic{topic_ts=TS,
+                                                      author=Author}},
+    NewChans = dict:store(ChanName, 
+                          NewChan,
+                          Chans),
+    ?INFO("Topic for ~s: ~p~n", [ChanName,
+                                 NewChan#chan.topic]),
     {next_state, joining_channel, State#state{channels=NewChans}};
 joining_channel(E = {irc, _Pid, C}, State) ->
     ?INFO("Unknown message in join state, retreating to connected state.~n~p",
@@ -295,12 +331,16 @@ handle_event(Event, StateName, State) ->
 %% gen_fsm:sync_send_all_state_event/2,3, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
+handle_sync_event(channels, _From, StateName, S = #state{channels=C}) ->
+    {reply, {ok, C}, StateName, S};
+handle_sync_event(nick, _From, StateName, S = #state{nick=N}) ->
+    {reply, {ok, N}, StateName, S};
 handle_sync_event(shutdown, _From, _StateName, S = #state{con=P}) when is_pid(P) ->
     unlink(P),
     irc_connection:close(P),
-    {stop, normal, ok, S#state{con=undefined}};
+    {stop, shutdown, ok, S#state{con=undefined}};
 handle_sync_event(shutdown, _From, _StateName, S) ->
-    {stop, normal, ok, S};
+    {stop, shutdown, ok, S};
 handle_sync_event(Event, _From, StateName, State) ->
     ?WARN("Unexpected event ~p in state ~p", [Event, StateName]),
     {next_state, StateName, State}.
