@@ -22,7 +22,8 @@
          send/2,
          reset_to_connected/1,
          nick/1,
-         channels/1
+         channels/1,
+         get_event_manager/2
         ]).
 
 -export([connecting/2,
@@ -40,7 +41,8 @@
                 port,
                 conf,
                 con,
-                channels
+                channels,
+                msg_evt
                }).
 
 -record(conf, {host,
@@ -69,7 +71,9 @@ start_link(Nick, Username, Realname, Host, Port, Options) ->
                                        port=Port,
                                        username=Username,
                                        realname=Realname,
-                                       options=Options}, Nick],
+                                       options=Options},
+                                 Nick,
+                                 Options],
                        []).
 
 shutdown(Pid) ->
@@ -87,6 +91,9 @@ nick(Pid) ->
 channels(Pid) ->
     gen_fsm:sync_send_all_state_event(Pid, channels).
 
+get_event_manager(Pid, Manager) ->
+    gen_fsm:sync_send_all_state_event(Pid, {get_event_manager, Manager}).
+
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -99,11 +106,22 @@ channels(Pid) ->
 %% gen_fsm:start_link/3,4, this function is called by the new process to 
 %% initialize. 
 %%--------------------------------------------------------------------
-init([Conf = #conf{}, Nick]) ->
-    {ok, connecting,
-     #state{conf=Conf, nick=Nick,
-            channels=dict:new()},
-     0}.
+init([Conf = #conf{}, Nick, Options]) ->
+    {ok, Pid} = gen_event:start_link(),
+    init_check_debug(Options,#state{conf=Conf, nick=Nick,
+                                    channels=dict:new(),
+                                    msg_evt=Pid}).
+
+init_check_debug(Options, State) ->
+    case proplists:get_bool(debug, Options) of
+        true ->
+            gen_event:add_handler(State#state.msg_evt,
+                                  {irc_gen_event_debug_callback, non_channel},
+                                  [non_channel]);
+        false -> ok
+    end,
+    {ok, connecting, State, 0}.
+            
 
 %%--------------------------------------------------------------------
 %% Function: 
@@ -331,6 +349,8 @@ handle_event(Event, StateName, State) ->
 %% gen_fsm:sync_send_all_state_event/2,3, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
+handle_sync_event({get_event_manager, non_channel}, _From, StateName, S = #state{msg_evt=M}) ->
+    {reply, {ok, M}, StateName, S};
 handle_sync_event(channels, _From, StateName, S = #state{channels=C}) ->
     {reply, {ok, C}, StateName, S};
 handle_sync_event(nick, _From, StateName, S = #state{nick=N}) ->
@@ -355,7 +375,8 @@ handle_sync_event(Event, _From, StateName, State) ->
 %% other message than a synchronous or asynchronous event
 %% (or a system message).
 %%--------------------------------------------------------------------
-handle_info(_Info, StateName, State) ->
+handle_info(Info, StateName, State) ->
+    ?INFO("Unexpected info: ~p", [Info]),
     {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
@@ -379,3 +400,8 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+notify(State = #state{msg_evt=Pid}, Evt) ->
+    notify(Pid, Evt);
+notify(Pid, Evt) when is_pid(Pid); is_atom(Pid) ->
+    gen_event:notify(Pid, Evt).
