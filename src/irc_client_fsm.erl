@@ -194,18 +194,18 @@ connected({irc, Pid, C = #irc_cmd{source=S, name=privmsg,
                                           ctcp=[CtcpReply]}),
     {next_state, connected, State};
 connected({irc, _Pid, C = #irc_cmd{name=privmsg, target=T,
-                                   args=[{message,M}], ctcp=undefined}}, State) ->
+                                   args=[{message,M}], ctcp=CTCP}}, State) ->
     U = C#irc_cmd.source,
-    ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.user,U#user.host,T,M]),
+    case {M, CTCP} of
+        {"", [#ctcp_cmd{name=action, args=[{action, Action}]}]} ->
+            ?INFO("~s ~s ~s", [T, U#user.nick, Action]);
+        {Msg, undefined} ->
+            ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.user,U#user.host,T,Msg]);
+        {Msg, C} ->
+            ?INFO("~s!~~~s@~s -> ~s: ~s~nCTCP: ~p", [U#user.nick,U#user.user,U#user.host,T,Msg,C])
+    end,
     {next_state, connected, State};
 
-connected({irc, _Pid, C = #irc_cmd{name=privmsg, target=T,
-                                   args=A, ctcp=Ctcp}}, State) ->
-    U = C#irc_cmd.source,
-    M = proplists:get_value(message, A, "<no message>"),
-    ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.user,U#user.host,T,M]),
-    ?INFO("CTCP requests: ~p", [Ctcp]),
-    {next_state, connected, State};
 connected({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->
     irc_connection:send_cmd(Pid, #irc_cmd{name=pong,
                                           args=[{token, T}]}),
