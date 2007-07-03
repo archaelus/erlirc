@@ -55,7 +55,7 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% Function: start_link() -> ok,Pid} | ignore | {error,Error}
+%% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description:Creates a gen_fsm process which calls Module:init/1 to
 %% initialize. To ensure a synchronized start-up procedure, this function
 %% does not return until Module:init/1 has returned.  
@@ -139,7 +139,8 @@ connecting(timeout, State = #state{conf=Conf}) ->
     {ok, Pid} = irc_connection:start_link(Conf#conf.host,
                                           Conf#conf.port,
                                           [{sendfn, fun (Pid, Term) -> 
-                                                            gen_fsm:send_event(Pid, {irc, self(), Term})
+                                                            gen_fsm:send_event(Pid, {irc, self(), Term}),
+                                                            gen_event:notify(State#state.msg_evt, {irc, self(), Term})
                                                     end}]),
     {next_state, wait_connected, State#state{con=Pid}}.
 
@@ -165,12 +166,11 @@ welcome({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->
     irc_connection:send_cmd(Pid, #irc_cmd{name=pong,
                                           args=[{token, T}]}),
     {next_state, welcome, State};
-welcome({irc, _Pid, C = #irc_cmd{name=welcome, args=A}}, State) ->
-    ?INFO("~s", [C#irc_cmd.raw]),
+welcome({irc, _Pid, #irc_cmd{name=welcome, args=A}}, State) ->
+    ?INFO("Nick now ~s", [proplists:get_value(target, A, State#state.nick)]),
     {next_state, welcome,
      State#state{nick=proplists:get_value(target, A, State#state.nick)}};
-welcome({irc, _Pid, C = #irc_cmd{name=MOTD}}, State) when MOTD == endofmotd; MOTD == nomotd ->
-    ?INFO("~s", [C#irc_cmd.raw]),
+welcome({irc, _Pid, #irc_cmd{name=MOTD}}, State) when MOTD == endofmotd; MOTD == nomotd ->
     ?INFO("Now connected.", []),
     {next_state, connected, State};
 welcome({irc, _Pid, C = #irc_cmd{}}, State) ->
@@ -178,37 +178,25 @@ welcome({irc, _Pid, C = #irc_cmd{}}, State) ->
     {next_state, welcome, State}.
 
 
-connected({irc, Pid, C = #irc_cmd{source=S, name=privmsg,
-                                  target=T,
-                                  args=[{message, M}],
-                                  ctcp=[#ctcp_cmd{name=version}]}}, State) ->
+connected({irc, Pid, #irc_cmd{source=S, name=privmsg,
+                              target=T,
+                              args=[{message, M}],
+                              ctcp=[#ctcp_cmd{name=version}]}}, State) ->
     CtcpReply = #ctcp_cmd{name=version,
                           args=[{client, atom_to_list(?MODULE)},
                                 {version, "0.0.1"},
                                 {environment, "erlang"}]},
-    ?INFO("CTCP requests: ~p~nCTCP reply: ~p", [C#irc_cmd.ctcp, CtcpReply]),
-    ?INFO("~s!~~~s@~s -> ~s: ~s", [S#user.nick,S#user.user,S#user.host,T,M]),
+    ?INFO("~s!~~~s@~s -> ~s Version request: ~s~nVersion Reply: ~s", [S#user.nick,S#user.user,S#user.host,T,M, CtcpReply]),
     irc_connection:send_cmd(Pid, #irc_cmd{name=notice,
                                           target=S#user.nick,
                                           args=[{message, ""}],
                                           ctcp=[CtcpReply]}),
     {next_state, connected, State};
-connected({irc, _Pid, C = #irc_cmd{name=privmsg, target=T,
-                                   args=[{message,M}], ctcp=CTCP}}, State) ->
-    U = C#irc_cmd.source,
-    case {M, CTCP} of
-        {"", [#ctcp_cmd{name=action, args=[{action, Action}]}]} ->
-            ?INFO("~s ~s ~s", [T, U#user.nick, Action]);
-        {Msg, undefined} ->
-            ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.user,U#user.host,T,Msg]);
-        {Msg, C} ->
-            ?INFO("~s!~~~s@~s -> ~s: ~s~nCTCP: ~p", [U#user.nick,U#user.user,U#user.host,T,Msg,C])
-    end,
-    {next_state, connected, State};
 
 connected({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->
     irc_connection:send_cmd(Pid, #irc_cmd{name=pong,
                                           args=[{token, T}]}),
+    %?INFO("Ping ~s, Ponging", [T]),
     {next_state, connected, State};
 connected(E = {irc, _Pid, #irc_cmd{name=join}}, State) ->
     handle_join(E, State);
@@ -401,7 +389,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
-notify(State = #state{msg_evt=Pid}, Evt) ->
+notify(#state{msg_evt=Pid}, Evt) ->
     notify(Pid, Evt);
 notify(Pid, Evt) when is_pid(Pid); is_atom(Pid) ->
     gen_event:notify(Pid, Evt).
