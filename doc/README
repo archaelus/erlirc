@@ -1,0 +1,108 @@
+An example use of the ErlIRC library is:
+
+$ > make shell
+
+(erlirc@127.0.0.1)1> lists:map(fun(A) -> {A,application:start(A)} end, [sasl, erlirc]).
+
+(erlirc@127.0.0.1)2> {ok, C} = irc_client_fsm:start_link("erlbot", "ve.lisp.geek.nz").
+{ok,<0.56.0>}
+(erlirc@127.0.0.1)3> 
+=PROGRESS REPORT==== 8-Aug-2007::23:58:37 ===
+          supervisor: {local,inet_gethost_native_sup}
+             started: [{pid,<0.61.0>},{mfa,{inet_gethost_native,init,[[]]}}]
+
+=PROGRESS REPORT==== 8-Aug-2007::23:58:37 ===
+          supervisor: {local,kernel_safe_sup}
+             started: [{pid,<0.60.0>},
+                       {name,inet_gethost_native_sup},
+                       {mfa,{inet_gethost_native,start_link,[]}},
+                       {restart_type,temporary},
+                       {shutdown,1000},
+                       {child_type,worker}]
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) NOTICE AUTH :*** Looking up your hostname
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) NOTICE AUTH :*** Checking Ident
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) NOTICE AUTH :*** Couldn't look up your hostname
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:151) :ve.irc.dollyfish.net.nz 001 erlbot :Welcome to the Internet Relay Network, erlbot
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 002 erlbot :Your host is ve.irc.dollyfish.net.nz, running version u2.10.11.04
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 003 erlbot :This server was created Sun Mar 23 2003 at 15:14:00 CET
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 004 erlbot ve.irc.dollyfish.net.nz u2.10.11.04 dioswkgx biklmnopstvr bklov
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 005 erlbot WHOX WALLCHOPS WALLVOICES USERIP CPRIVMSG CNOTICE SILENCE=15 MODES=6 MAXCHANNELS=15 MAXBANS=45 NICKLEN=9 TOPICLEN=160 AWAYLEN=160 KICKLEN=160 :are supported by this server
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 005 erlbot CHANTYPES=#& PREFIX=(ov)@+ CHANMODES=b,k,l,imnpstr CASEMAPPING=rfc1459 NETWORK=UnderNet :are supported by this server
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 251 erlbot :There are 6 users and 4 invisible on 2 servers
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 252 erlbot 1 :operator(s) online
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 254 erlbot 2 :channels formed
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 255 erlbot :I have 3 clients and 1 servers
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz NOTICE erlbot :Highest connection count: 10 (9 clients)
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 375 erlbot :- ve.irc.dollyfish.net.nz Message of the Day - 
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 372 erlbot :^BType /MOTD to read the AUP before continuing using this service.^B
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:159) :ve.irc.dollyfish.net.nz 372 erlbot :The message of the day was last changed: 2006-3-21 8:44
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:155) :ve.irc.dollyfish.net.nz 376 erlbot :End of /MOTD command.
+
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:156) Now connected.
+=INFO REPORT==== 8-Aug-2007::23:58:37 ===
+(<0.56.0> irc_client_fsm:200) (notice) :ve.irc.dollyfish.net.nz NOTICE erlbot :on 1 ca 1(4) ft 10(10)
+
+{irc_cmd,":ve.irc.dollyfish.net.nz NOTICE erlbot :on 1 ca 1(4) ft 10(10)\r\n",
+         {server,"ve.irc.dollyfish.net.nz"},
+         "erlbot",
+         notice,
+         [{message,"on 1 ca 1(4) ft 10(10)"}],
+         undefined}
+(erlirc@127.0.0.1)4> irc_client_fsm:send(C, irc_cmd:join("#dullbots")).  
+ok
+(erlirc@127.0.0.1)5> 
+=INFO REPORT==== 8-Aug-2007::23:59:03 ===
+(<0.56.0> irc_client_fsm:206) Joining #dullbots
+=INFO REPORT==== 8-Aug-2007::23:59:03 ===
+(<0.56.0> irc_client_fsm:252) Joining: #dullbots
+Members: [[{op,"erlbot"}]]
+=INFO REPORT==== 8-Aug-2007::23:59:03 ===
+(<0.56.0> irc_client_fsm:240) Finish(erlirc@127.0.0.1)5> irc_client_fsm:send(C, irc_cmd:part("#dullbots", "later all.")).
+=INFO REPORT==== 8-Aug-2007::23:59:25 ===
+(<0.56.0> irc_client_fsm:213) nem joined #dullbots.
+=INFO REPORT==== 8-Aug-2007::23:59:30 ===
+(<0.56.0> irc_client_fsm:181) nem!~nem@10.0.0.5 -> #dullbots: Hey erlbot :)
+=INFO REPORT==== 8-Aug-2007::23:59:38 ===
+(<0.56.0> irc_client_fsm:181) nem!~nem@10.0.0.5 -> erlbot: See you later.
+ok
+(erlirc@127.0.0.1)6> 
+=INFO REPORT==== 8-Aug-2007::23:59:45 ===
+(<0.56.0> irc_client_fsm:222) Parted #dullbots.
+(erlirc@127.0.0.1)6> irc_client_fsm:shutdown(C).
