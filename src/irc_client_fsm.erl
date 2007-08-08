@@ -16,8 +16,8 @@
 
 %% API
 -export([start_link/2,
-         start_link/3,
-         start_link/6,
+         start_link/4,
+         start_link/5,
          shutdown/1,
          send/2,
          reset_to_connected/1,
@@ -37,8 +37,6 @@
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
 -record(state, {nick,
-                host,
-                port,
                 conf,
                 con,
                 channels,
@@ -47,9 +45,8 @@
 
 -record(conf, {host,
                port,
-               options,
-               username,
-               realname}).
+               net,
+               options}).
 
 %%====================================================================
 %% API
@@ -61,16 +58,15 @@
 %% does not return until Module:init/1 has returned.  
 %%--------------------------------------------------------------------
 start_link(Nick, Host) ->
-    start_link(Nick, Host, 6667).
+    start_link(Nick, Host, 6667, undefined).
 
-start_link(Nick, Host, Port) ->
-    start_link(Nick, Nick, Nick, Host, Port, [{reconnect, 60}]).
+start_link(Nick, Host, Port, Net) ->
+    start_link(Nick, Host, Port, Net, [{reconnect, 60},{user_name,Nick},{real_name,Nick}]).
 
-start_link(Nick, Username, Realname, Host, Port, Options) ->
+start_link(Nick, Host, Port, Net, Options) ->
     gen_fsm:start_link(?MODULE, [#conf{host=Host,
                                        port=Port,
-                                       username=Username,
-                                       realname=Realname,
+                                       net=Net,
                                        options=Options},
                                  Nick,
                                  Options],
@@ -145,11 +141,13 @@ connecting(timeout, State = #state{conf=Conf}) ->
     {next_state, wait_connected, State#state{con=Pid}}.
 
 wait_connected({irc, Pid, connected}, State = #state{conf=Conf}) ->
+    UserName = proplists:get_value(user_name, Conf#conf.options, State#state.nick),
+    RealName = proplists:get_value(real_name, Conf#conf.options, State#state.nick),
     irc_connection:send_cmd(Pid, #irc_cmd{name=nick,
                                           args=[{name, State#state.nick}]}),
     irc_connection:send_cmd(Pid, #irc_cmd{name=user,
-                                          args=[{user_name, Conf#conf.username},
-                                                {real_name, Conf#conf.realname}]}),
+                                          args=[{user_name, UserName},
+                                                {real_name, RealName}]}),
     {next_state, welcome, State}.
 
 welcome({irc, Pid, #irc_cmd{source=S, name=privmsg, ctcp=[#ctcp_cmd{name=version}]}}, State) ->
@@ -177,7 +175,6 @@ welcome({irc, _Pid, C = #irc_cmd{}}, State) ->
     ?INFO("~s", [C#irc_cmd.raw]),
     {next_state, welcome, State}.
 
-
 connected({irc, Pid, #irc_cmd{source=S, name=privmsg,
                               target=T,
                               args=[{message, M}],
@@ -186,7 +183,8 @@ connected({irc, Pid, #irc_cmd{source=S, name=privmsg,
                           args=[{client, atom_to_list(?MODULE)},
                                 {version, "0.0.1"},
                                 {environment, "erlang"}]},
-    ?INFO("~s!~~~s@~s -> ~s Version request: ~s~nVersion Reply: ~s", [S#user.nick,S#user.user,S#user.host,T,M, CtcpReply]),
+    ?INFO("~s!~~~s@~s -> ~s Version request: ~s~nVersion Reply: ~s",
+          [S#user.nick,S#user.user,S#user.host,T,M, CtcpReply]),
     irc_connection:send_cmd(Pid, #irc_cmd{name=notice,
                                           target=S#user.nick,
                                           args=[{message, ""}],
@@ -208,37 +206,31 @@ connected({irc, _Pid, C}, State) ->
 
 handle_join({irc, _Pid, #irc_cmd{source=#user{nick=Me},
                                  args=[{channels, [Chan]}]}},
-            State = #state{nick=Me,channels=Chans}) ->
-    ?INFO("Joining ~s", [Chan]),
-    {next_state, joining_channel,
-     State#state{channels=dict:store(Chan, #chan{name=Chan}, Chans)}};
+            State = #state{nick=Me}) ->
+    {ok, ChanPid} = irc_channel_sup:start_chan(net(State), #chan{name=Chan}),
+    ?INFO("Joining ~s (~p)", [Chan, ChanPid]),
+    {next_state, joining_channel, State};
 
-handle_join({irc, _Pid, #irc_cmd{source=#user{nick=Nick},
-                                 args=[{channels, [Chan]}]}},
-            State = #state{channels=Chans}) ->
+handle_join({irc, _Pid, C = #irc_cmd{source=#user{nick=Nick},
+                                     args=[{channels, [Chan]}]}},
+            State) ->
     ?INFO("~s joined ~s.", [Nick, Chan]),
-    ChanR = dict:fetch(Chan, Chans),
-    NewChanR = ChanR#chan{members=[{user, Nick}|ChanR#chan.members]},
-    {next_state, connected,
-     State#state{channels=dict:store(Chan, NewChanR, Chans)}}.
+    irc_channel:join({irc_channel, net(State), Chan}, C#irc_cmd.source),
+    {next_state, connected, State}.
 
-handle_part({irc, _Pid, #irc_cmd{source=#user{nick=Me},
+handle_part({irc, _Pid, C = #irc_cmd{source=#user{nick=Me},
                                  args=[{channels, [Chan]}|_]}},
-            State = #state{nick=Me,channels=Chans}) ->
+            State = #state{nick=Me}) ->
     ?INFO("Parted ~s.", [Chan]),
-    {next_state, connected,
-     State#state{channels=dict:erase(Chan, Chans)}};
-handle_part({irc, _Pid, #irc_cmd{source=#user{nick=Nick},
-                                 args=[{channels, [Chan]},
-                                       {message, Msg}]}},
-            State = #state{channels=Chans}) ->
+    irc_channel:part({irc_channel, net(State), Chan}, C#irc_cmd.source),
+    {next_state, connected, State};
+handle_part({irc, _Pid, C = #irc_cmd{source=#user{nick=Nick},
+                                     args=[{channels, [Chan]},
+                                           {message, Msg}]}},
+            State) ->
     ?INFO("~s parted ~s (~s).", [Nick, Chan, Msg]),
-    ChanR = dict:fetch(Chan, Chans),
-    NewChanR = ChanR#chan{members=[M ||
-                                      M = {_Type, N} <- ChanR#chan.members
-                                          ,N /= Nick]},
-    {next_state, connectead,
-     State#state{channels=dict:store(Chan, NewChanR, Chans)}}.
+    irc_channel:part({irc_channel, net(State), Chan}, C#irc_cmd.source),
+    {next_state, connected, State}.
 
 joining_channel({irc, _Pid, #irc_cmd{name=endofnames,args=A}},
                 State) ->
@@ -246,41 +238,37 @@ joining_channel({irc, _Pid, #irc_cmd{name=endofnames,args=A}},
     ?INFO("Finished joining ~s.", [Chan]),
     {next_state, connected, State};
 joining_channel({irc, _Pid, #irc_cmd{name=namreply, args=A}},
-                State = #state{channels=Chans}) ->
+                State) ->
     Members = proplists:get_value(members, A, []),
     Type = proplists:get_value(channel_type, A, undefined),
-    ChanName = proplists:get_value(channel, A, "ERROR - No channel"),
-    Chan = dict:fetch(ChanName, Chans),
-    NewChans = dict:store(ChanName, 
-                          Chan#chan{members=lists:usort([Members|Chan#chan.members]),
-                                    type=Type},
-                          Chans),
-    ?INFO("Joining: ~s~nMembers: ~p", [ChanName,
-                                       lists:usort([Members|Chan#chan.members])]),
-    {next_state, joining_channel, State#state{channels=NewChans}};
+    Chan = proplists:get_value(channel, A, "ERROR - No channel"),
+    irc_channel:alter({irc_channel, net(State), Chan}, type, Type),
+    lists:foreach(fun (Nick) ->
+                          irc_channel:join({irc_channel, net(State), Chan},
+                                           user(State, Nick))
+                  end,
+                  Members),
+    ?INFO("Joining: ~s~nMembers: ~p",
+          [Chan, irc_channel:members(net(State), Chan)]),
+    {next_state, joining_channel, State};
 joining_channel({irc, _Pid, #irc_cmd{name=topic, args=A}},
-                State = #state{channels=Chans}) ->
+                State) ->
     Topic = proplists:get_value(topic, A),
     ChanName = proplists:get_value(channel, A),
-    Chan = dict:fetch(ChanName, Chans),
-    NewChans = dict:store(ChanName, 
-                          Chan#chan{topic=(Chan#chan.topic)#topic{text=Topic}},
-                          Chans),
-    {next_state, joining_channel, State#state{channels=NewChans}};
+    ?INFO("~s topic [~s]", [ChanName, Topic]),
+    irc_channel:topic({irc_channel, net(State), ChanName}, Topic),
+    {next_state, joining_channel, State};
 joining_channel({irc, _Pid, #irc_cmd{name=topicinfo, args=A}},
-                State = #state{channels=Chans}) ->
+                State) ->
     TS = proplists:get_value(topic_set_at, A),
     Author = proplists:get_value(topic_set_by, A),
     ChanName = proplists:get_value(channel, A),
-    Chan = dict:fetch(ChanName, Chans),
-    NewChan = Chan#chan{topic=(Chan#chan.topic)#topic{topic_ts=TS,
-                                                      author=Author}},
-    NewChans = dict:store(ChanName, 
-                          NewChan,
-                          Chans),
+    irc_channel:topicinfo({irc_channel, net(State), ChanName},
+                          TS, Author),
+    Topic = irc_channel:topic({irc_channel, net(State), ChanName}),
     ?INFO("Topic for ~s: ~p~n", [ChanName,
-                                 NewChan#chan.topic]),
-    {next_state, joining_channel, State#state{channels=NewChans}};
+                                 Topic]),
+    {next_state, joining_channel, State};
 joining_channel(E = {irc, _Pid, C}, State) ->
     ?INFO("Unknown message in join state, retreating to connected state.~n~p",
           [C#irc_cmd.raw]),
@@ -393,3 +381,13 @@ notify(#state{msg_evt=Pid}, Evt) ->
     notify(Pid, Evt);
 notify(Pid, Evt) when is_pid(Pid); is_atom(Pid) ->
     gen_event:notify(Pid, Evt).
+
+net(#state{conf=Conf}) ->
+    net(Conf);
+net(#conf{net=Net}) ->
+    Net.
+
+user(#state{conf=#conf{net=Net, host=Host}}, Nick) ->
+    #user{nick=Nick,
+          host=Host,
+          net=Net}.
