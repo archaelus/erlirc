@@ -10,6 +10,7 @@
                nick_ts,
                user,
                host,
+               net,
                authname,
                mode,
                description,
@@ -45,7 +46,7 @@
                topic = #topic{},
                type = public,
                members = [],
-               info}).
+               info = []}).
 
 
 -record(ctcp_cmd, {name,
