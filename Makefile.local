@@ -1,6 +1,6 @@
 APP_NAME=erlirc
 VSN=0.0.1
-APP_DEPS="sasl"
+APP_DEPS="sasl,proc_reg"
 
 EUNIT_ROOT=/Users/nem/projects/erlang/eunit
 JUNGERL_ROOT=/Users/nem/projects/erlang/jungerl
