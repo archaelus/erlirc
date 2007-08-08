@@ -17,7 +17,7 @@
 -export([init/1, handle_event/2, handle_call/2, 
          handle_info/2, terminate/2, code_change/3]).
 
--record(state, {id}).
+-record(state, {id, f}).
 
 %%====================================================================
 %% gen_event callbacks
@@ -28,7 +28,9 @@
 %% this function is called to initialize the event handler.
 %%--------------------------------------------------------------------
 init([Id]) ->
-    {ok, #state{id=Id}}.
+    {ok, #state{id=Id}};
+init([Id, Fun]) ->
+    {ok, #state{id=Id, f=Fun}}.
 
 %%--------------------------------------------------------------------
 %% Function:  
@@ -39,8 +41,11 @@ init([Id]) ->
 %% gen_event:notify/2 or gen_event:sync_notify/2, this function is called for
 %% each installed event handler to handle the event. 
 %%--------------------------------------------------------------------
-handle_event(Event, S = #state{id=Id}) ->
+handle_event(Event, S = #state{id=Id, f=undefined}) ->
     ?INFO("~p: ~p", [Id, Event]),
+    {ok, S};
+handle_event(Event, S = #state{id=Id, f=Fn}) when is_function(Fn) ->
+    catch Fn(Id, Event),
     {ok, S}.
 
 %%--------------------------------------------------------------------
