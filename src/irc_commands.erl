@@ -2,7 +2,7 @@
 %% @copyright Geoff Cant
 %% @author Geoff Cant <geoff@catalyst.net.nz>
 %% @version {@vsn}, {@date} {@time}
-%% @doc 
+%% @doc Converts raw irc command names to and from erlang atoms.
 %% @end
 %%%-------------------------------------------------------------------
 -module(irc_commands).
@@ -16,8 +16,10 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% @spec () ->
-%% @doc 
+%% @spec from_list(string()) -> atom()
+%% @doc Returns the atom matching the irc command string or throws
+%% invalid_cmd if the string isn't a valid command.
+%% @throws {invalid_command, Cmd::string()}
 %% @end 
 
 from_list("AC") -> account;
@@ -159,6 +161,11 @@ from_list("SERVLIST") -> servlist;
 from_list("SQUERY") -> squery;
 from_list(Cmd) -> throw({invalid_command, Cmd}).
 
+%% @spec ctcp_from_list(string()) -> atom()
+%% @doc Returns the atom matching the CTCP command string or throws
+%% invalid_cmd if the string isn't a valid command.
+%% @throws {invalid_command, Cmd::string()}
+%% @end 
 ctcp_from_list("ACTION") -> action;
 ctcp_from_list("FINGER") -> finger;
 ctcp_from_list("VERSION") -> version;
@@ -170,6 +177,11 @@ ctcp_from_list("PING") -> ping;
 ctcp_from_list("TIME") -> time;
 ctcp_from_list(Cmd) -> throw({invalid_command, Cmd}).
 
+%% @spec to_list(atom()) -> string()
+%% @doc Converts the irc command atom to its raw string form or throws
+%% invalid_command.
+%% @throws {invalid_command, Cmd::string()}
+%% @end 
 to_list(privmsg) -> "PRIVMSG";
 to_list(notice) -> "NOTICE";
 to_list(Cmd) -> throw({invalid_command, Cmd}).

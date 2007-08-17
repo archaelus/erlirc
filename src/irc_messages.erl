@@ -2,7 +2,8 @@
 %% @copyright Geoff Cant
 %% @author Geoff Cant <geoff@catalyst.net.nz>
 %% @version {@vsn}, {@date} {@time}
-%% @doc 
+%% @doc Irc message parser library. Turns raw irc commands/responses
+%% into erlang terms.
 %% @end
 %%%-------------------------------------------------------------------
 -module(irc_messages).
@@ -24,10 +25,10 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% @spec () ->
-%% @doc 
-%% @end 
 
+%% @spec parse_line(Line::string()) -> #irc_cmd{}
+%% @doc Converts Line to an irc_cmd record, crashing if the line isn't parsable.
+%% @end 
 parse_line(Line) ->
     parse_args(irc_parser:parse_line(Line)).
 

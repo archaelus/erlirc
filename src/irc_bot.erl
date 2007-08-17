@@ -2,7 +2,7 @@
 %% @copyright Geoff Cant
 %% @author Geoff Cant <geoff@catalyst.net.nz>
 %% @version {@vsn}, {@date} {@time}
-%% @doc 
+%% @doc Undocumented as yet. FIXME.
 %% @end
 %%%-------------------------------------------------------------------
 -module(irc_bot).
@@ -32,7 +32,7 @@
 %% API
 %%====================================================================
 %%--------------------------------------------------------------------
-%% @spec start_link() -> {ok,Pid} | ignore | {error,Error}
+%% @spec start_link(term(),term(),term()) -> {ok,Pid} | ignore | {error,Error}
 %% @doc Starts the server
 %% @end
 %%--------------------------------------------------------------------
