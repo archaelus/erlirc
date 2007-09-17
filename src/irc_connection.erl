@@ -5,6 +5,14 @@
 %%%
 %%% Created : 25 Mar 2006 by Geoff Cant <nem@erlang.geek.nz>
 %%%-------------------------------------------------------------------
+%%%-------------------------------------------------------------------
+%% @copyright Geoff Cant
+%% @author Geoff Cant <geoff@catalyst.net.nz>
+%% @version {@vsn}, {@date} {@time}
+%% @doc Low level irc connection handling - wraps a tcp socket and
+%% translates raw irc messages to and from irc_commands
+%% @end
+%%%-------------------------------------------------------------------
 -module(irc_connection).
 
 -include_lib("logging.hrl").
@@ -16,9 +24,11 @@
 -export([start_link/4,
          start_link/3,
          start_link/2,
+         sock_start/3,
          send_line/2,
          send_cmd/2,
-         close/1]).
+         close/1,
+         connect/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -51,8 +61,18 @@ start_link(Host, Port, Owner, Options) ->
               parsefn=proplists:get_value(parsefn, Options, fun irc_messages:parse_line/1)
              },
     gen_server:start_link(?MODULE,
-                          [C, Owner],
+                          [{connect, C, Owner}],
                           []).
+
+
+sock_start(Owner, Socket, Options) ->
+    C = #conf{timeout=proplists:get_value(timeout, Options, 30*1000),
+              sendfn=proplists:get_value(sendfn, Options, fun default_sendfn/2),
+              parsefn=proplists:get_value(parsefn, Options, fun irc_messages:parse_line/1)
+             },
+    gen_server:start(?MODULE,
+                     [{sock, C, Socket, Owner}],
+                     []).
 
 send_line(Con, Line) ->
     gen_server:cast(Con, {send_line, Line}).
@@ -63,6 +83,10 @@ send_cmd(Con, Cmd = #irc_cmd{}) ->
 
 close(Con) ->
     gen_server:call(Con, close).
+
+connect(Server, Socket) ->
+    ok = gen_tcp:controlling_process(Socket, Server),
+    gen_server:call(Server, {connected, Socket}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -75,10 +99,15 @@ close(Con) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Conf, Owner]) ->
+init([{connect, Conf, Owner}]) ->
     {ok, #state{conf=Conf,
                 owner=Owner,
-                connector=connector(Conf)}}.
+                connector=connector(Conf)}};
+init([{sock, Conf, Sock, Owner}]) ->
+    {ok, #state{owner=Owner,
+                sock=Sock, % unnecessary
+                conf=Conf}}.
+
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -192,8 +221,7 @@ connector(Conf) ->
     Owner = self(),
     proc_lib:spawn_link(fun () ->
                                 {ok, Sock} = connect_to(Conf),
-                                gen_tcp:controlling_process(Sock, Owner),
-                                ok = gen_server:call(Owner, {connected, Sock}),
+                                ok = connect(Owner, Sock),
                                 unlink(Owner),
                                 ok
                         end).
