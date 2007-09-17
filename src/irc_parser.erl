@@ -16,14 +16,8 @@
 parse_line(Line) ->
     parse_line(Line, #irc_cmd{raw=Line}).
 
-parse_line([A,B,C,D,E,$\s|Rest], Cmd) ->
-    case irc_numerics:p10b64_to_int([A,B,C,D,E]) of 
-        Num when is_integer(Num) ->
-            parse_command_part(Rest, Cmd#irc_cmd{source=#user{numeric=Num}});
-        {error, Reason} ->
-            ?ERR("Need to fix this code.", []),
-            erlang:error(Reason)
-    end;
+parse_line(Line = [$E,$R,$R,$O,$R,$\s|Rest], Cmd) ->
+    parse_command_part(Line, Cmd);
 parse_line([A,B,$\s|Rest], Cmd) when ((A == $[) or (A == $]) or
                                       (($0 =< A) and (A =< $9)) or
                                       (($a =< A) and (A =< $z)) or
@@ -33,6 +27,14 @@ parse_line([A,B,$\s|Rest], Cmd) when ((A == $[) or (A == $]) or
                                       (($a =< B) and (B =< $z)) or
                                       (($A =< B) and (B =< $Z))) ->
     parse_command_part(Rest, Cmd#irc_cmd{source=#p10server{numeric=irc_numerics:p10b64_to_int([A,B])}});
+parse_line([A,B,C,D,E,$\s|Rest], Cmd) ->
+    case irc_numerics:p10b64_to_int([A,B,C,D,E]) of 
+        Num when is_integer(Num) ->
+            parse_command_part(Rest, Cmd#irc_cmd{source=#user{numeric=Num}});
+        {error, Reason} ->
+            ?ERR("Need to fix this code.", []),
+            erlang:error(Reason)
+    end;
 parse_line([$:|Rest], Cmd) ->
     parse_prefix_part(Rest, Cmd);
 parse_line(Line, Cmd) ->
