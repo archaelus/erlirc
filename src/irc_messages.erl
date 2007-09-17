@@ -21,6 +21,8 @@
          encode_ctcp_delims/1,
          decode_ctcp_delims/1]).
 
+-compile(export_all).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -48,6 +50,8 @@ parse_args(needmoreparams, Args, Cmd) ->
     parse_error(needmoreparams, string:tokens(Args, ":"), Cmd);
 
 parse_args(pass, ":" ++ Pass, Cmd) ->
+    Cmd#irc_cmd{args=[{pass, Pass}]};
+parse_args(pass, " " ++ Pass, Cmd) ->
     Cmd#irc_cmd{args=[{pass, Pass}]};
 
 parse_args(server, Args, Cmd) ->
@@ -108,6 +112,9 @@ parse_args(endofnames, Arg, Cmd) ->
                       {message, Message}],
                 target=Nick};
 
+parse_args(user, Args, Cmd) ->
+    parse_user(Cmd, split_one_prefix_many_space(Args));
+
 %% parse_args(Name, Args, Cmd) when Name == welcome
 %%                                  ;Name == yourhost
 %%                                  ;Name == created
@@ -138,6 +145,11 @@ parse_nick([$+|Nick]) ->
     {voice, Nick};
 parse_nick(Nick) ->
     {user, Nick}.
+
+parse_user(Cmd, {[UserName, Mode, _Unused], RealName}) ->
+    Cmd#irc_cmd{args=[{user_name, UserName},
+		      {real_name, RealName},
+		      {mode, Mode}]}.
 
 parse_chantype("@") -> secret;
 parse_chantype("*") -> private;
@@ -285,7 +297,11 @@ parse_p10_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,AuthName,Numeric]
                              host=HostName,
                              authname=AuthName,
                              mode="",
-                             description=Description}}.
+                             description=Description}};
+parse_p10_nick(Cmd, {[Nick], []}) ->
+    Cmd#irc_cmd{args=[{name, Nick}]};
+parse_p10_nick(Cmd, {[], Nick}) when is_list(Nick) ->
+    Cmd#irc_cmd{args=[{name, Nick}]}.
 
 %%--------------------------------------------------------------------
 parse_burst(Cmd, [Name, ChanTS, "+" ++ ChanMode, UserData]) ->
@@ -455,7 +471,7 @@ nick(N) when is_list(N) ->
     N.
 
 irc_error_test() ->
-    ?assertMatch(X when is_record(X, irc_cmd),
+    ?assertMatch(#irc_cmd{name=error},
                  parse_line("ERROR :Closing Link: erl.irc by ve.irc.dollyfish.net.nz (No C:line)\r\n")).
 
 irc_server_test() ->
@@ -522,3 +538,9 @@ encode_ctcp_delims_test() ->
 nick_reply_test() ->
     ?assertMatch(#irc_cmd{name=nick, args=[{name, "nemor"}]},
                  parse_line(":nemerlng!nemerlng@121-73-3-252.cable.telstraclear.net NICK :nemor\r\n")).
+
+user_test() ->
+    Cmd = parse_line("USER nem nem localhost :Geoff Cant\r\n"),
+    ?assertMatch(#irc_cmd{name=user}, Cmd),
+    ?assertMatch("nem", proplists:get_value(user_name,Cmd#irc_cmd.args)),
+    ?assertMatch("Geoff Cant", proplists:get_value(real_name,Cmd#irc_cmd.args)).
