@@ -4,3 +4,6 @@ APP_DEPS="sasl"
 
 EUNIT_ROOT=/Users/nem/projects/erlang/eunit
 JUNGERL_ROOT=/Users/nem/projects/erlang/jungerl
+
+ngircd:
+	ngircd -p -n
