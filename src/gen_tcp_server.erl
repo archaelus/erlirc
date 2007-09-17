@@ -101,8 +101,12 @@ close(Server, Timeout) ->
 %% Initiates the server
 %%--------------------------------------------------------------------
 init([Parent, Host, Port, Options]) ->
-    GenTcpOptions = gen_tcp_options(lists:append([{ip, Host}, {active, false}], Options)),
-    {ok, Socket} = gen_tcp:listen(Port, GenTcpOptions),
+    GenTcpOptions = gen_tcp_options([{ip, Host}, {active, false} | Options]),
+    %?INFO("GenTCP Options: ~p", [GenTcpOptions]),
+    init(gen_tcp:listen(Port, GenTcpOptions), [Parent, Host, Port, Options]).
+
+init({ok, Socket}, [Parent, Host, Port, Options]) ->
+    %?INFO("Got Socket ~p", [Socket]),
     {ok, Acceptor} = proc_lib:start_link(?MODULE, acceptor, [self(), Socket]),
     {ok, #state{listen_socket=Socket,
                 acceptor=Acceptor,
@@ -110,7 +114,9 @@ init([Parent, Host, Port, Options]) ->
                 cp_monitor=erlang:monitor(process, Parent),
                 host=Host,
                 port=Port,
-                options=Options}}.
+                options=Options}};
+init({error, Reason}, _) ->
+    {stop, {gen_tcp, Reason}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -132,7 +138,7 @@ handle_call({controlling_process, Pid}, _From, S = #state{controlling_process=P,
     erlang:demonitor(Ref),
     {reply, ok, S#state{controlling_process=Pid,
                         cp_monitor=erlang:monitor(process, Pid)}};
-handle_call({new_client, CliSock}, _From, S = #state{controlling_process=P,
+handle_call({new_client, _CliSock}, _From, S = #state{controlling_process=P,
                                                      listen_socket=Socket,
                                                      options=O}) ->
     ClientHandler =  proplists:get_value(client_handler, O,
@@ -186,6 +192,7 @@ handle_info(Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(Reason, S = #state{listen_socket=Sck}) when Sck =/= undefined ->
+    ?INFO("Closed listen socket.", []),
     gen_tcp:close(Sck),
     terminate(Reason, S#state{listen_socket=undefined});
 terminate(_Reason, _State) ->
@@ -223,9 +230,18 @@ acceptor(Parent, Socket) ->
 
 new_client(Parent, _ListenSock, ClientSock) ->
     case gen_server:call(Parent, {new_client, ClientSock}) of
-        {ok, ClientHandlerFn, ClientParent} ->
-            Result = (catch ClientHandlerFn(ClientParent, ClientSock)),
-            handle_new_client(Result)
+        {ok, ClientHandlerFn, ClientParent} when is_function(ClientHandlerFn) ->
+            try 
+                Result = ClientHandlerFn(ClientParent, ClientSock),
+                handle_new_client(Result)
+            catch
+                Error:Reason ->
+                    ?WARN("Couldn't handle new client, ~p ~p", [Error, Reason]),
+                    gen_tcp:close(ClientSock),
+                    {error, Reason}
+            end;
+        Else ->
+            ?WARN("Couldn't handle new client, ~p", [Else])
     end.
 
 handle_new_client(ok) -> ok;
@@ -234,7 +250,7 @@ handle_new_client(Error) -> {error, {client_handler, Error}}.
 
 gen_tcp_options(Options) ->
     lists:filter(fun (O) -> my_option(O) == false end,
-                 proplists:normalize(Options, [])).
+                 proplists:unfold(proplists:normalize(Options, []))).
 
 default_client_handler(Parent, ClientSocket) ->
     gen_tcp:controlling_process(ClientSocket, Parent),
