@@ -48,7 +48,11 @@ init([]) ->
           {irc_channel_sup,start_link,[]},
           permanent,2000,worker,
           [irc_channel_sup, irc_channel]},
-    {ok,{{one_for_all,2,10}, [CS]}}.
+    Gp = {"Global Process Registry",
+          {gproc,start_link,[]},
+          permanent,2000,worker,
+          [gproc, gen_leader]},
+    {ok,{{one_for_all,2,10}, [Gp,CS]}}.
 
 %%====================================================================
 %% Internal functions
