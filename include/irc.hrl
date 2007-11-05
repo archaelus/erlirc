@@ -5,12 +5,11 @@
 
 -author('nem@erlang.geek.nz').
 
--record(user, {numeric,
-               nick,
+-record(user, {nick,
                nick_ts,
-               user,
+               name,
+               realname,
                host,
-               authname,
                mode,
                description,
                info}).
@@ -21,6 +20,15 @@
                   name,
                   args = [],
                   ctcp}).
+
+-record(p10user, {numeric,
+                  nick,
+                  nick_ts,
+                  user,
+                  host,
+                  authname,
+                  mode,
+                  description}).
 
 -record(p10server, {numeric,
                     name,
@@ -50,3 +58,6 @@
 
 -record(ctcp_cmd, {name,
                    args = []}).
+
+-record(gircd_state, {nicks,
+                      channels}).

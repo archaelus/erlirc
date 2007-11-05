@@ -169,7 +169,7 @@ connected({irc, Pid, C = #irc_cmd{source=S, name=privmsg,
                                 {version, "0.0.1"},
                                 {environment, "erlang"}]},
     ?INFO("CTCP requests: ~p~nCTCP reply: ~p", [C#irc_cmd.ctcp, CtcpReply]),
-    ?INFO("~s!~~~s@~s -> ~s: ~s", [S#user.nick,S#user.user,S#user.host,T,M]),
+    ?INFO("~s!~~~s@~s -> ~s: ~s", [S#user.nick,S#user.name,S#user.host,T,M]),
     irc_connection:send_cmd(Pid, #irc_cmd{name=notice,
                                           target=S#user.nick,
                                           args=[{message, ""}],
@@ -178,14 +178,14 @@ connected({irc, Pid, C = #irc_cmd{source=S, name=privmsg,
 connected({irc, _Pid, C = #irc_cmd{name=privmsg, target=T,
                                    args=[{message,M}], ctcp=undefined}}, State) ->
     U = C#irc_cmd.source,
-    ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.user,U#user.host,T,M]),
+    ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.name,U#user.host,T,M]),
     {next_state, connected, State};
 
 connected({irc, _Pid, C = #irc_cmd{name=privmsg, target=T,
                                    args=A, ctcp=Ctcp}}, State) ->
     U = C#irc_cmd.source,
     M = proplists:get_value(message, A, "<no message>"),
-    ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.user,U#user.host,T,M]),
+    ?INFO("~s!~~~s@~s -> ~s: ~s", [U#user.nick,U#user.name,U#user.host,T,M]),
     ?INFO("CTCP requests: ~p", [Ctcp]),
     {next_state, connected, State};
 connected({irc, Pid, #irc_cmd{name=ping, args=[{token, T}]}}, State) ->

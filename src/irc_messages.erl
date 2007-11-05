@@ -281,23 +281,23 @@ parse_server(Cmd, [Name, HopCount, BootTS, LinkTS, Proto, [A,B|MaxClient], Flags
 parse_p10_nick(Cmd, Args) when is_list(Args) ->
     parse_p10_nick(Cmd, split_one_prefix_many_space(Args));
 parse_p10_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,"+" ++ UMode,AuthName,Numeric], Description}) ->
-    Cmd#irc_cmd{target=#user{numeric=Numeric,
-                             nick=Nick,
-                             nick_ts=NickTS,
-                             user=UserName,
-                             host=HostName,
-                             authname=AuthName,
-                             mode=UMode,
-                             description=Description}};
+    Cmd#irc_cmd{target=#p10user{numeric=Numeric,
+                                nick=Nick,
+                                nick_ts=NickTS,
+                                user=UserName,
+                                host=HostName,
+                                authname=AuthName,
+                                mode=UMode,
+                                description=Description}};
 parse_p10_nick(Cmd, {[Nick,_Something,NickTS,UserName,HostName,AuthName,Numeric], Description}) ->
-    Cmd#irc_cmd{target=#user{numeric=Numeric,
-                             nick=Nick,
-                             nick_ts=NickTS,
-                             user=UserName,
-                             host=HostName,
-                             authname=AuthName,
-                             mode="",
-                             description=Description}};
+    Cmd#irc_cmd{target=#p10user{numeric=Numeric,
+                                nick=Nick,
+                                nick_ts=NickTS,
+                                user=UserName,
+                                host=HostName,
+                                authname=AuthName,
+                                mode="",
+                                description=Description}};
 parse_p10_nick(Cmd, {[Nick], []}) ->
     Cmd#irc_cmd{args=[{name, Nick}]};
 parse_p10_nick(Cmd, {[], Nick}) when is_list(Nick) ->
@@ -544,3 +544,6 @@ user_test() ->
     ?assertMatch(#irc_cmd{name=user}, Cmd),
     ?assertMatch("nem", proplists:get_value(user_name,Cmd#irc_cmd.args)),
     ?assertMatch("Geoff Cant", proplists:get_value(real_name,Cmd#irc_cmd.args)).
+
+%numreply_test() ->
+%    ?assertMatch(Num when Num > 0, string:str(to_list(#irc_cmd{name=notregistered,}))).

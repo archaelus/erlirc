@@ -30,7 +30,7 @@ parse_line([A,B,$\s|Rest], Cmd) when ((A == $[) or (A == $]) or
 parse_line([A,B,C,D,E,$\s|Rest], Cmd) ->
     case irc_numerics:p10b64_to_int([A,B,C,D,E]) of 
         Num when is_integer(Num) ->
-            parse_command_part(Rest, Cmd#irc_cmd{source=#user{numeric=Num}});
+            parse_command_part(Rest, Cmd#irc_cmd{source=#p10user{numeric=Num}});
         {error, Reason} ->
             ?ERR("Need to fix this code.", []),
             erlang:error(Reason)
@@ -57,9 +57,9 @@ parse_prefix(Prefix, #irc_cmd{source=User} = Cmd) ->
         [NickSpec, HostSpec] -> 
             case string:tokens(NickSpec, "!") of
                 [Nick, [$~|HostUser]] ->
-                    Cmd#irc_cmd{source=User#user{nick=Nick, user=HostUser, host=HostSpec}};
+                    Cmd#irc_cmd{source=User#user{nick=Nick, name=HostUser, host=HostSpec}};
                 [Nick, HostUser] ->
-                    Cmd#irc_cmd{source=User#user{nick=Nick, user=HostUser, host=HostSpec}};
+                    Cmd#irc_cmd{source=User#user{nick=Nick, name=HostUser, host=HostSpec}};
                 [_Host] ->
                     Cmd#irc_cmd{source=User#user{nick=NickSpec, host=HostSpec}}
             end
