@@ -15,7 +15,7 @@
 
 %% API
 -export([start_link/0,
-         start_link/2,
+         start_link/3,
          shutdown/1]).
 
 %% gen_irc_server callbacks
@@ -37,13 +37,12 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    start_link(atom_to_list(?MODULE), ?PORT).
+    start_link("localnet", atom_to_list(?MODULE), ?PORT).
 
-start_link(Name, Port) ->
-    {ok, Pid} = gen_irc_server:start_link(?MODULE, Name, []),
+start_link(Net, Name, Port) ->
+    {ok, Pid} = gen_irc_server:start_link(?MODULE, Net, Name, []),
     {ok, _Listener} = gen_irc_server:listen(Pid, Port),
     {ok, Pid}.
-
 
 shutdown(Server) ->
     gen_server:call(Server, shutdown).
@@ -64,13 +63,8 @@ shutdown(Server) ->
 init(_) ->
     {ok, #state{}}.
 
-handle_nick(Nick, _Pass, S = #state{local_nicks=LN}) ->
-    case lists:member(Nick, LN) of
-	true ->
-	    {reply, {invalid, nicknameinuse, "Nickname in use."}, S};
-	false ->
-	    {reply, valid, S#state{local_nicks=[Nick|LN]}}
-    end.
+handle_nick(_Nick, _Pass, S = #state{}) ->
+    {nick_ok, S}.
 
 %%--------------------------------------------------------------------
 %% @private

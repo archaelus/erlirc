@@ -15,7 +15,8 @@
 -include_lib("kernel/include/inet.hrl").
 
 %% API
--export([start_link/3, start/3, listen/2, listen/3, new_client/3]).
+-export([start_link/4, start/4, listen/2, listen/3, new_client/3,
+         nick/3, net/1, servername/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -24,8 +25,7 @@
 -export([behaviour_info/1]).
 
 
--record(state, {users, channels, listeners,
-                mod, mod_state, servername}).
+-record(state, {net, listeners, mod, mod_state, name}).
 
 -define(SERVER, ?MODULE).
 
@@ -50,11 +50,13 @@ behaviour_info(_) ->
 %% @end
 %%--------------------------------------------------------------------
 
-start_link(Module, ServerName, Args) ->
-    gen_server:start_link(?MODULE, [{Module, ServerName, Args}], []).
+start_link(Module, Net, ServerName, Args)
+  when is_list(Net), is_list(ServerName), is_atom(Module), is_list(Args) ->
+    gen_server:start_link(?MODULE, [{Net, ServerName, Module, Args}], []).
 
-start(Module, ServerName, Args) ->
-    gen_server:start(?MODULE, [{Module, ServerName, Args}], []).
+start(Module, Net, ServerName, Args)
+  when is_list(Net), is_list(ServerName), is_atom(Module), is_list(Args) ->
+    gen_server:start(?MODULE, [{Net, ServerName, Module, Args}], []).
 
 listen(Server, Port) ->
     listen(Server, {0,0,0,0}, Port).
@@ -73,6 +75,20 @@ new_client(Server, Socket, ServerName) ->
     end,
     ok.
 
+%% @type user() = #user{}.
+%% @type numeric() = atom() | integer().
+
+%% @spec change_nick(user(), NewNick::string(), Password::string()) -> Result
+%%   Result = {ok, NewUser::user()} | {error, numeric(), Reason::string()}
+nick(Server, NewNick, Password) ->
+    gen_server:call(Server, {nick, self(), NewNick, Password}).
+
+net(Server) ->
+    gen_server:call(Server, net).
+
+servername(Server) ->
+    gen_server:call(Server, servername).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -85,18 +101,18 @@ new_client(Server, Socket, ServerName) ->
 %% @doc Initiates the server
 %% @end
 %%--------------------------------------------------------------------
-init([{Mod, ServerName, Args}]) ->
-    init(Mod, ServerName, Mod:init([{servername, ServerName}|Args])).
+init([{Net, ServerName, Mod, Args}]) ->
+    init(Net, ServerName, Mod, Mod:init([{net, Net}, {servername, ServerName} | Args])).
 
-init(Mod, ServerName, {ok, MS, Timeout}) ->
-    {ok, #state{users=[], channels=[], listeners=[],
-		servername=ServerName,
+init(Net, ServerName, Mod, {ok, MS, Timeout}) ->
+    true = gproc:reg(gproc:name({irc_server, Net, ServerName}), self()),
+    {ok, #state{net=Net, name=ServerName,
                 mod=Mod, mod_state=MS}, Timeout};
-init(Mod, ServerName, {ok, MS}) ->
-    {ok, #state{users=[], channels=[], listeners=[],
-		servername=ServerName,
+init(Net, ServerName, Mod, {ok, MS}) ->
+    true = gproc:reg(gproc:name({irc_server, Net, ServerName}), self()),
+    {ok, #state{net=Net, name=ServerName,
                 mod=Mod, mod_state=MS}};
-init(_Mod, _ServerName, Other) ->
+init(_Net, _Mod, _ServerName, Other) ->
     Other.
 
 %%--------------------------------------------------------------------
@@ -110,7 +126,11 @@ init(_Mod, _ServerName, Other) ->
 %% @doc Handling call messages
 %% @end
 %%--------------------------------------------------------------------
-handle_call({listen, Addr, Port}, _From, State = #state{listeners=L, servername=ServerName}) ->
+handle_call(net, _From, S = #state{net=Net}) ->
+    {reply, Net, S};
+handle_call(servername, _From, S = #state{name=Name}) ->
+    {reply, Name, S};
+handle_call({listen, Addr, Port}, _From, State = #state{listeners=L, name=ServerName}) ->
     case gen_tcp_server:listen(Addr,
 			       Port,
 			       [{client_handler,
@@ -122,8 +142,21 @@ handle_call({listen, Addr, Port}, _From, State = #state{listeners=L, servername=
 	Else ->
 	    {reply, Else, State}
     end;
-handle_call({validate_nick, Nick, Pass}, _From, State = #state{mod=M, mod_state=MS}) ->
-    handle_call_result(M:handle_nick(Nick, Pass, MS), State);
+handle_call({nick, Pid, Nick, Pass}, _From, S = #state{net=Net})
+  when is_pid(Pid) ->
+    GprocUserName = gproc:name({irc_user, Net, Nick}),
+    case gproc:where(GprocUserName) of
+        undefined ->
+            case modapply(handle_nick, [Nick, Pass], S) of
+                {nick_ok, NewMS} ->
+                    true = gproc:reg(GprocUserName, self()),
+                    {reply, ok, S#state{mod_state=NewMS}};
+                E = {error, _N, _Reason} ->
+                    {reply, E, S}
+            end;
+        Pid when is_pid(Pid) ->
+            {reply, {error, nicknameinuse}, S}
+    end;
 handle_call(Call, From, State = #state{mod=M, mod_state=MS}) ->
     handle_call_result(M:handle_call(Call, From, MS), State).
 
@@ -187,3 +220,6 @@ handle_common_result({stop, Reason, MS}, State) ->
     {stop, Reason, State#state{mod_state=MS}};
 handle_common_result({stop, Reason, Reply, MS}, State) ->
     {stop, Reason, Reply, State#state{mod_state=MS}}.
+
+modapply(Function, Args, #state{mod=M, mod_state=MS}) ->
+    apply(M, Function, Args ++ [MS]).

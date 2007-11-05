@@ -26,10 +26,10 @@
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
 -record(state, {con,
-                nick,
+                user = #user{},
                 pass,
                 server,
-		servername}).
+                server_mod}).
 
 %%====================================================================
 %% API
@@ -64,13 +64,12 @@ start(Server, Socket, Options) when (is_port(Socket) or is_pid(Socket)),
 %% initialize. 
 %%--------------------------------------------------------------------
 init(Options) ->
-    Servername = proplists:get_value(servername, Options, "unknown.server"),
     Server = proplists:get_value(server, Options),
-    init(Server, Servername, proplists:get_value(socket, Options, false)).
+    Mod = proplists:get_value(mod, Options, gen_irc_server),
+    init(Mod, Server, proplists:get_value(socket, Options, false)).
 
-init(Server, Servername, true) ->
-    {ok, connecting, #state{server=Server,
-			    servername=Servername}}.
+init(Mod, Server, true) ->
+    {ok, connecting, #state{server=Server, server_mod=Mod}}.
 
 %%--------------------------------------------------------------------
 %% Function: 
@@ -96,24 +95,27 @@ login_pass({irc, _, #irc_cmd{name=pass, args=Args}}, State) ->
 login_pass(E = {irc, _, _}, State) ->
     login_nick(E, State).
 
-login_nick({irc, _, #irc_cmd{name=nick, args=Args}}, State) ->
+login_nick({irc, _, #irc_cmd{name=nick, args=Args}},
+           S = #state{server_mod=M, user=U}) ->
     Name = proplists:get_value(name, Args),
-    case gen_irc_server:validate_nick(State#state.server, Name, State#state.pass) of
-	valid ->
-	    {next_state, login_user, State#state{nick=Name}};
-	{invalid, Numeric, Reason} ->
-	    numreply(State, Numeric, Reason)
-    end,
-    {next_state, login_nick, State};
+    case M:nick(S#state.server, Name, S#state.pass) of
+	ok ->
+	    {next_state, login_user, S#state{user=U#user{nick=Name}}};
+	{error, Numeric, Reason} ->
+	    numreply(S, Numeric, Reason),
+            {next_state, login_nick, S}
+    end;
 login_nick({irc, _, _}, State) ->
     csend(State, err_nonicknamegiven),
     {next_state, login_nick, State}.
 
-login_user({irc, _, #irc_cmd{name=user,args=Args}}, State) ->
+login_user({irc, _, #irc_cmd{name=user,args=Args}},
+           State = #state{user=U}) ->
     UserName = proplists:get_value(user_name, Args),
     RealName = proplists:get_value(real_name, Args),
-    {next_state, login, State};
-login_user(Cmd = {irc, C, _}, State) ->
+    {next_state, login, State#state{user=U#user{name=UserName,
+                                                realname=RealName}}};
+login_user(Cmd = {irc, _, _}, State) ->
     ?INFO("Got ~p in state login_user", [Cmd]),
     csend(State, notregistered),
     {next_state, login_user, State}.
@@ -137,9 +139,9 @@ login(Event, State) ->
 %% gen_fsm:sync_send_event/2,3, the instance of this function with the same
 %% name as the current state name StateName is called to handle the event.
 %%--------------------------------------------------------------------
-state_name(_Event, _From, State) ->
-    Reply = ok,
-    {reply, Reply, state_name, State}.
+%state_name(_Event, _From, State) ->
+%    Reply = ok,
+%    {reply, Reply, state_name, State}.
 
 %%--------------------------------------------------------------------
 %% Function: 
