@@ -5,6 +5,8 @@
 
 -author('nem@erlang.geek.nz').
 
+-define(ERLIRC_VERSION, "erlirc-0.1").
+
 -record(user, {nick,
                nick_ts,
                name,
