@@ -28,7 +28,8 @@
          send_line/2,
          send_cmd/2,
          close/1,
-         connect/2]).
+         connect/2,
+         peername/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -88,6 +89,9 @@ connect(Server, Socket) ->
     ok = gen_tcp:controlling_process(Socket, Server),
     gen_server:call(Server, {connected, Socket}).
 
+peername(Server) ->
+    gen_server:call(Server, peername).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -118,6 +122,8 @@ init([{sock, Conf, Sock, Owner}]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call(peername, _From, State = #state{sock=Sock}) ->
+    {reply, inet:peername(Sock), State};
 handle_call({connected, Socket}, _From, State) ->
     inet:setopts(Socket, [{active, true}]),
     o_send(State, connected),
