@@ -149,8 +149,7 @@ handle_call({nick, Pid, Nick, Pass}, _From, S = #state{net=Net})
         undefined ->
             case modapply(handle_nick, [Nick, Pass], S) of
                 {nick_ok, NewMS} ->
-                    true = gproc:reg(GprocUserName, self()),
-                    {reply, ok, S#state{mod_state=NewMS}};
+                    {reply, {ok, GprocUserName}, S#state{mod_state=NewMS}};
                 E = {error, _N, _Reason} ->
                     {reply, E, S}
             end;

@@ -103,7 +103,8 @@ login_nick({irc, _, #irc_cmd{name=nick, args=Args}},
            S = #state{server_mod=M, user=U}) ->
     Name = proplists:get_value(name, Args),
     case M:nick(S#state.server, Name, S#state.pass) of
-	ok ->
+	{ok, GprocUserName} ->
+            true = gproc:reg(GprocUserName, self()),
 	    {next_state, login_user, S#state{user=U#user{nick=Name}}};
 	{error, Numeric, Reason} ->
 	    numreply(S, Numeric, Reason),
@@ -134,8 +135,10 @@ welcome(State) ->
     %serversend(State, #irc_cmd{name=isupport}), % XXX probably need to ask parent server what we support
     {next_state, connected, State}.
 
-connected(Event, State) ->
+connected({irc, _, #irc_cmd{name=Cmd}} = Event, State) ->
     ?INFO("Got ~p in state connected.", [Event]),
+    serversend(State, #irc_cmd{name=unknowncommand,
+                               args=[{command, Cmd}, {message, "Ye cannot do that here."}]}),
     {next_state, connected, State}.
 
 %%--------------------------------------------------------------------
