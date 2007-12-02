@@ -175,6 +175,7 @@ handle_info({tcp, _Port, Line}, State) ->
     end,
     {noreply, State};
 handle_info({tcp_closed, _Port}, State) ->
+    o_send(State, {disconnected, tcp_closed}),
     {stop, connection_closed, State};
 handle_info(Info, State) ->
     ?WARN("Unknown message: ~p~n", [Info]),
