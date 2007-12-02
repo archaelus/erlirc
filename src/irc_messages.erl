@@ -464,7 +464,12 @@ to_list(myinfo, Args, Cmd = #irc_cmd{source=Server}) ->
     Version = proplists:get_value(version, Args, ?ERLIRC_VERSION),
     UModes = proplists:get_value(usermodes, Args, "aios"), % XXX - the bare minumum?
     CModes = proplists:get_value(channelmodes, Args, "biklImnoPstv"), % XXX - pure lies?
-    numeric_to_list(myinfo, Cmd, "~s ~s ~s ~s", [Host, Version, UModes, CModes]).
+    numeric_to_list(myinfo, Cmd, "~s ~s ~s ~s", [Host, Version, UModes, CModes]);
+
+to_list(unknowncommand, Args, Cmd = #irc_cmd{source=Server}) ->
+    UnknownCommand = proplists:get_value(command, Args, unknowncommand),
+    Message = proplists:get_value(message, Args, "Unknown command"),
+    numeric_to_list(unknowncommand, Cmd, "~s :~s", [string:to_upper(atom_to_list(UnknownCommand)), Message]).
 
 numeric_to_list(Numeric, #irc_cmd{source=#irc_server{host=Server},target=#user{nick=Nick}}, Message, Args) ->
     numeric_to_list(Numeric, Server, Nick, Message, Args).
