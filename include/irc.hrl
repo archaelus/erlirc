@@ -7,11 +7,11 @@
 
 -define(ERLIRC_VERSION, "erlirc-0.1").
 
--record(user, {nick,
+-record(user, {nick = "missingnick",
                nick_ts,
-               name,
-               realname,
-               host,
+               name = "missingname",
+               realname = "missingrealname",
+               host = "missinghost",
                mode,
                description,
                info}).
@@ -42,7 +42,7 @@
                     flags,
                     description}).
 
--record(server, {host}).
+-record(irc_server, {host}).
 
 -record(topic, {text,
                 topic_ts,
