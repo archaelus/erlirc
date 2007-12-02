@@ -348,7 +348,9 @@ parse_burst_userdata(Cmd, []) ->
 
 %%--------------------------------------------------------------------
 to_list(Cmd) when is_record(Cmd, irc_cmd) ->
-    to_list(Cmd#irc_cmd.name, Cmd#irc_cmd.args, Cmd) ++ "\r\n".
+    to_list(Cmd#irc_cmd.name, Cmd#irc_cmd.args, Cmd) ++ "\r\n";
+to_list(#user{} = User) ->
+    user_to_list(User).
 
 to_list(pass, Args, _Cmd) when length(Args) >= 3 ->
     Pass = proplists:get_value(password, Args),
@@ -440,11 +442,65 @@ to_list(user, Args, _Cmd) ->
     Name = proplists:get_value(user_name, Args),
     Mode = proplists:get_value(mode, Args, "+w"),
     RealName = proplists:get_value(real_name, Args, "Erlang Hacker"),
-    lists:flatten(["USER ", Name, " ", Mode, " * :", RealName]).
+    lists:flatten(["USER ", Name, " ", Mode, " * :", RealName]);
+
+to_list(welcome, [], Cmd = #irc_cmd{target=User}) ->
+    numeric_to_list(welcome, Cmd,
+                    ":Welcome to the Internet Relay Network ~s", [to_list(User)]);
+to_list(welcome, [{message, Msg}], Cmd) ->
+    numeric_to_list(welcome, Cmd, Msg, []);
+
+to_list(yourhost, Args, Cmd = #irc_cmd{source=Server}) ->
+    Host = proplists:get_value(host, Args, Server#irc_server.host),
+    Version = proplists:get_value(version, Args, ?ERLIRC_VERSION),
+    numeric_to_list(yourhost, Cmd, ":Your host is ~s, running version ~s", [Host, Version]);
+
+to_list(created, Args, Cmd) ->
+    Date = proplists:get_value(created, Args, erlang:universaltime()),
+    numeric_to_list(created, Cmd, ":This server was created ~s", [iso_8601_fmt(Date)]);
+
+to_list(myinfo, Args, Cmd = #irc_cmd{source=Server}) ->
+    Host = proplists:get_value(host, Args, Server#irc_server.host),
+    Version = proplists:get_value(version, Args, ?ERLIRC_VERSION),
+    UModes = proplists:get_value(usermodes, Args, "aios"), % XXX - the bare minumum?
+    CModes = proplists:get_value(channelmodes, Args, "biklImnoPstv"), % XXX - pure lies?
+    numeric_to_list(myinfo, Cmd, "~s ~s ~s ~s", [Host, Version, UModes, CModes]).
+
+numeric_to_list(Numeric, #irc_cmd{source=#irc_server{host=Server},target=#user{nick=Nick}}, Message, Args) ->
+    numeric_to_list(Numeric, Server, Nick, Message, Args).
+numeric_to_list(Numeric, Server, Nick, Message, Args) ->
+    flatformat(":~s ~s ~s " ++ Message, 
+               [Server, irc_numerics:atom_to_numeric(Numeric), Nick | Args]).
+
+user_to_list(#user{nick=Nick,name=Uname,host={A,B,C,D}}) ->
+    flatformat("~s!~s@~p.~p.~p.~p", [Nick, Uname, A,B,C,D]);
+user_to_list(#user{nick=Nick,name=Uname,host=Host}) when is_list(Host) ->
+    Nick ++ "!" ++ Uname ++ "@" ++ Host.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+flatformat(String, Args) ->
+    lists:flatten(io_lib:format(String, Args)).
+
+iso_8601_fmt(DateTime) ->
+    iso_8601_fmt(DateTime, 0).
+
+iso_8601_fmt(DateTime, TzOffset) when TzOffset >= 0 ->
+    {{Year,Month,Day},{Hour,Min,Sec}} = DateTime,
+    io_lib:format("~4.10.0B-~2.10.0B-~2.10.0BT~2.10.0B:~2.10.0B:~2.10.0B+~2.10.0B",
+                  [Year, Month, Day, Hour, Min, Sec, TzOffset]);
+iso_8601_fmt(DateTime, TzOffset) when TzOffset < 0 ->
+    {{Year,Month,Day},{Hour,Min,Sec}} = DateTime,
+    io_lib:format("~4.10.0B-~2.10.0B-~2.10.0BT~2.10.0B:~2.10.0B:~2.10.0B-~2.10.0B",
+                  [Year, Month, Day, Hour, Min, Sec, 0 - TzOffset]).
+
+iso_8601_fmt_test() ->
+    ?assertMatch("2007-01-01T00:00:00+00",
+                 lists:flatten(iso_8601_fmt({{2007,1,1},{0,0,0}}, 0))),
+    ?assertMatch("2007-01-01T00:00:00-01",
+                 lists:flatten(iso_8601_fmt({{2007,1,1},{0,0,0}}, -1))).
 
 now_to_unix_ts(Tm) ->
     calendar:datetime_to_gregorian_seconds(Tm) -
@@ -544,6 +600,9 @@ user_test() ->
     ?assertMatch(#irc_cmd{name=user}, Cmd),
     ?assertMatch("nem", proplists:get_value(user_name,Cmd#irc_cmd.args)),
     ?assertMatch("Geoff Cant", proplists:get_value(real_name,Cmd#irc_cmd.args)).
+
+user_to_list_test() ->
+    ?assertMatch("nem!nem@localhost", to_list(#user{nick="nem",name="nem",host="localhost"})).
 
 %numreply_test() ->
 %    ?assertMatch(Num when Num > 0, string:str(to_list(#irc_cmd{name=notregistered,}))).
