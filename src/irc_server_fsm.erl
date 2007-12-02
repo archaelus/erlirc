@@ -19,7 +19,7 @@
 	 login_pass/2,
 	 login_nick/2,
 	 login_user/2,
-	 login/2]).
+	 connected/2]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
@@ -27,6 +27,7 @@
 
 -record(state, {con,
                 user = #user{},
+                irc_server = #irc_server{},
                 pass,
                 server,
                 server_mod}).
@@ -66,10 +67,12 @@ start(Server, Socket, Options) when (is_port(Socket) or is_pid(Socket)),
 init(Options) ->
     Server = proplists:get_value(server, Options),
     Mod = proplists:get_value(mod, Options, gen_irc_server),
-    init(Mod, Server, proplists:get_value(socket, Options, false)).
+    IrcServer = #irc_server{host=proplists:get_value(host, Options, "unknown")},
+    init(Mod, Server, proplists:get_value(socket, Options, false),
+         #state{irc_server=IrcServer}).
 
-init(Mod, Server, true) ->
-    {ok, connecting, #state{server=Server, server_mod=Mod}}.
+init(Mod, Server, true, State) ->
+    {ok, connecting, State#state{server=Server, server_mod=Mod}}.
 
 %%--------------------------------------------------------------------
 %% Function: 
@@ -83,9 +86,10 @@ init(Mod, Server, true) ->
 %% the current state name StateName is called to handle the event. It is also 
 %% called if a timeout occurs. 
 %%--------------------------------------------------------------------
-connecting({irc, IrcConnection, connected}, State) ->
+connecting({irc, IrcConnection, connected}, State = #state{user=User}) ->
     erlang:link(IrcConnection),
-    {next_state, login_pass, State#state{con=IrcConnection}};
+    {ok, {Address, _Port}} = irc_connection:peername(IrcConnection),
+    {next_state, login_pass, State#state{con=IrcConnection,user=User#user{host=Address}}};
 connecting(Msg, State) ->
     {stop, {unexpected, Msg}, State}.
 
@@ -113,16 +117,26 @@ login_user({irc, _, #irc_cmd{name=user,args=Args}},
            State = #state{user=U}) ->
     UserName = proplists:get_value(user_name, Args),
     RealName = proplists:get_value(real_name, Args),
-    {next_state, login, State#state{user=U#user{name=UserName,
-                                                realname=RealName}}};
+    User = U#user{name=UserName,
+                  realname=RealName},
+    ?INFO("~p logged in.", [User]),
+    welcome(State#state{user=User});
 login_user(Cmd = {irc, _, _}, State) ->
     ?INFO("Got ~p in state login_user", [Cmd]),
     csend(State, notregistered),
     {next_state, login_user, State}.
 
-login(Event, State) ->
-    ?INFO("Got ~p in state login.", [Event]),
-    {next_state, login, State}.
+welcome(State) ->
+    serversend(State, #irc_cmd{name=welcome}),
+    serversend(State, #irc_cmd{name=yourhost}), % XXX probably need to ask parent server our version
+    serversend(State, #irc_cmd{name=created}), % XXX probably need to ask parent server when we were created
+    serversend(State, #irc_cmd{name=myinfo}), % XXX probably need to ask parent server what we support
+    %serversend(State, #irc_cmd{name=isupport}), % XXX probably need to ask parent server what we support
+    {next_state, connected, State}.
+
+connected(Event, State) ->
+    ?INFO("Got ~p in state connected.", [Event]),
+    {next_state, connected, State}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -186,6 +200,9 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %% other message than a synchronous or asynchronous event
 %% (or a system message).
 %%--------------------------------------------------------------------
+%handle_info({'DOWN',_Ref,process,Pid,Reason}, _StateName, S = #state{con=Pid}) when is_pid(Pid) ->
+%    ?INFO("Should really shutdown properly here.", []),
+%    {stop, Reason, S#state{con=undefined}};
 handle_info(_Info, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -197,7 +214,7 @@ handle_info(_Info, StateName, State) ->
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(Reason, StateName, _State) ->
-    ?INFO("Shutting down - ~p", [Reason, StateName]),
+    ?INFO("Shutting down (state ~p) - ~p", [StateName, Reason]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -214,6 +231,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 
 numreply(Where, Numeric, Message) when is_atom(Numeric) ->
     csend(Where, #irc_cmd{name=Numeric, args=[{message, Message}]}).
+
+serversend(#state{con=C,user=U,irc_server=S}, #irc_cmd{} = Cmd) ->
+    csend(C, Cmd#irc_cmd{source=S,target=U}).
 
 csend(#state{con=C}, Term) ->
     csend(C, Term);
