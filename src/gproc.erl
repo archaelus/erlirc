@@ -461,13 +461,15 @@ handle_info({'DOWN', _MRef, process, Pid, _}, S) ->
 	    ok
     end,
     ets:select_delete(?TAB, [{{{Pid,'_'}}, [], [true]}]),
-    ets:delete(?TAB, {Pid}),
+    ets:delete(?TAB, Pid),
     lists:foreach(
 	  fun({T,C,N} = Key) ->
 		  if T == c ->
 			  Val = ets:lookup_element(?TAB, {Key,Pid}, 3),
 			  %% BUG - if wer're leader, this won't work
 			  update_aggr_counter(C,N, -Val);
+                     T == n ->
+                          ets:delete(?TAB, {Key, n});
 		     true -> ok
 		  end,
 		  ets:delete(?TAB, {Key,Pid})
