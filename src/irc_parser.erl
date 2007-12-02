@@ -50,7 +50,7 @@ parse_prefix(Prefix, #irc_cmd{source=User} = Cmd) ->
         [Nick] -> 
             case lists:member($., Prefix) of
                 true ->
-                    Cmd#irc_cmd{source=#server{host=Nick}};
+                    Cmd#irc_cmd{source=#irc_server{host=Nick}};
                 false ->
                     Cmd#irc_cmd{source=User#user{nick=Nick}}
             end;
