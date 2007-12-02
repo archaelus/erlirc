@@ -25,7 +25,7 @@
 -export([behaviour_info/1]).
 
 
--record(state, {net, listeners, mod, mod_state, name}).
+-record(state, {net, listeners = [], mod, mod_state, name}).
 
 -define(SERVER, ?MODULE).
 
