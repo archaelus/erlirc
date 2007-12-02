@@ -44,15 +44,11 @@ start_link(_) ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    CS = {"Channel Supervisor",
-          {irc_channel_sup,start_link,[]},
-          permanent,2000,worker,
-          [irc_channel_sup, irc_channel]},
     Gp = {"Global Process Registry",
           {gproc,start_link,[]},
           permanent,2000,worker,
           [gproc, gen_leader]},
-    {ok,{{one_for_all,2,10}, [Gp,CS]}}.
+    {ok,{{one_for_all,2,10}, [Gp]}}.
 
 %%====================================================================
 %% Internal functions
