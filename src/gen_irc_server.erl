@@ -16,7 +16,7 @@
 
 %% API
 -export([start_link/4, start/4, listen/2, listen/3, new_client/3,
-         nick/3, net/1, servername/1]).
+         nick/3, irc_server/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -25,7 +25,7 @@
 -export([behaviour_info/1]).
 
 
--record(state, {net, listeners = [], mod, mod_state, name}).
+-record(state, {server = #irc_server{}, listeners = [], mod, mod_state}).
 
 -define(SERVER, ?MODULE).
 
@@ -52,11 +52,11 @@ behaviour_info(_) ->
 
 start_link(Module, Net, ServerName, Args)
   when is_list(Net), is_list(ServerName), is_atom(Module), is_list(Args) ->
-    gen_server:start_link(?MODULE, [{Net, ServerName, Module, Args}], []).
+    gen_server:start_link(?MODULE, [{#irc_server{net=Net,host=ServerName}, Module, Args}], []).
 
 start(Module, Net, ServerName, Args)
   when is_list(Net), is_list(ServerName), is_atom(Module), is_list(Args) ->
-    gen_server:start(?MODULE, [{Net, ServerName, Module, Args}], []).
+    gen_server:start(?MODULE, [{#irc_server{net=Net,host=ServerName},Module, Args}], []).
 
 listen(Server, Port) ->
     listen(Server, {0,0,0,0}, Port).
@@ -64,9 +64,9 @@ listen(Server, Port) ->
 listen(Server, Addr, Port)  ->
     gen_server:call(Server, {listen, Addr, Port}).
 
-new_client(Server, Socket, ServerName) ->
+new_client(Server, Socket, IrcServer) ->
     {ok, {Addr, Port}} = inet:peername(Socket),
-    {ok, Pid} = irc_server_fsm:start(Server, Socket, [{servername, ServerName}]),
+    {ok, Pid} = irc_server_fsm:start(Server, Socket, [{irc_server, IrcServer}]),
     case inet:gethostbyaddr(Addr) of
         {ok, #hostent{h_name=L}} when is_list(L) ->
             ?INFO("New IRC client ~s:~p (fsm ~p)", [L, Port, Pid]);
@@ -83,11 +83,8 @@ new_client(Server, Socket, ServerName) ->
 nick(Server, NewNick, Password) ->
     gen_server:call(Server, {nick, self(), NewNick, Password}).
 
-net(Server) ->
-    gen_server:call(Server, net).
-
-servername(Server) ->
-    gen_server:call(Server, servername).
+irc_server(Server) ->
+    gen_server:call(Server, irc_server).
 
 %%====================================================================
 %% gen_server callbacks
@@ -101,18 +98,18 @@ servername(Server) ->
 %% @doc Initiates the server
 %% @end
 %%--------------------------------------------------------------------
-init([{Net, ServerName, Mod, Args}]) ->
-    init(Net, ServerName, Mod, Mod:init([{net, Net}, {servername, ServerName} | Args])).
+init([{Server, Mod, Args}]) ->
+    init(Server, Mod, Mod:init([{irc_server, Server} | Args])).
 
-init(Net, ServerName, Mod, {ok, MS, Timeout}) ->
-    true = gproc:reg(gproc:name({irc_server, Net, ServerName}), self()),
-    {ok, #state{net=Net, name=ServerName,
+init(Server = #irc_server{net=Net,host=Host}, Mod, {ok, MS, Timeout}) ->
+    true = gproc:reg(gproc:name({irc_server, Net, Host}), self()),
+    {ok, #state{server=Server,
                 mod=Mod, mod_state=MS}, Timeout};
-init(Net, ServerName, Mod, {ok, MS}) ->
-    true = gproc:reg(gproc:name({irc_server, Net, ServerName}), self()),
-    {ok, #state{net=Net, name=ServerName,
+init(Server = #irc_server{net=Net,host=Host}, Mod, {ok, MS}) ->
+    true = gproc:reg(gproc:name({irc_server, Net, Host}), self()),
+    {ok, #state{server=Server,
                 mod=Mod, mod_state=MS}};
-init(_Net, _Mod, _ServerName, Other) ->
+init(_Server, _Mod, Other) ->
     Other.
 
 %%--------------------------------------------------------------------
@@ -126,15 +123,13 @@ init(_Net, _Mod, _ServerName, Other) ->
 %% @doc Handling call messages
 %% @end
 %%--------------------------------------------------------------------
-handle_call(net, _From, S = #state{net=Net}) ->
-    {reply, Net, S};
-handle_call(servername, _From, S = #state{name=Name}) ->
-    {reply, Name, S};
-handle_call({listen, Addr, Port}, _From, State = #state{listeners=L, name=ServerName}) ->
+handle_call(irc_server, _From, S = #state{server=Server}) ->
+    {reply, Server, S};
+handle_call({listen, Addr, Port}, _From, State = #state{listeners=L, server=IrcServer}) ->
     case gen_tcp_server:listen(Addr,
 			       Port,
 			       [{client_handler,
-				 fun (Server, Sock) -> new_client(Server, Sock, ServerName) end},
+				 fun (Server, Sock) -> new_client(Server, Sock, IrcServer) end},
 				{reuseaddr, true},
 				{packet, line}]) of
 	{ok, Server} ->
@@ -142,9 +137,9 @@ handle_call({listen, Addr, Port}, _From, State = #state{listeners=L, name=Server
 	Else ->
 	    {reply, Else, State}
     end;
-handle_call({nick, Pid, Nick, Pass}, _From, S = #state{net=Net})
+handle_call({nick, Pid, Nick, Pass}, _From, S = #state{server=Server})
   when is_pid(Pid) ->
-    GprocUserName = gproc:name({irc_user, Net, Nick}),
+    GprocUserName = gproc:name({irc_user, Server#irc_server.net, Nick}),
     case gproc:where(GprocUserName) of
         undefined ->
             case modapply(handle_nick, [Nick, Pass], S) of

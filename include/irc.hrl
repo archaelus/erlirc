@@ -14,7 +14,8 @@
                host = "missinghost",
                mode,
                description,
-               info}).
+               info,
+               net}).
 
 -record(irc_cmd, {raw,
                   source,
@@ -42,7 +43,8 @@
                     flags,
                     description}).
 
--record(irc_server, {host}).
+-record(irc_server, {host,
+                     net}).
 
 -record(topic, {text,
                 topic_ts,
