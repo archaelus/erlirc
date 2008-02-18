@@ -78,6 +78,8 @@ handle_nick(_Nick, _Pass, S = #state{}) ->
 %% @doc Call message handler callbacks
 %% @end
 %%--------------------------------------------------------------------
+handle_call(shutdown, _From, State) ->
+    {stop, normal, State};
 handle_call(Call, _From, State) ->
     ?WARN("Unexpected call ~p.", [Call]),
     {noreply, State}.
