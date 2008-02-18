@@ -192,7 +192,6 @@ handle_info(Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(Reason, S = #state{listen_socket=Sck}) when Sck =/= undefined ->
-    ?INFO("Closed listen socket.", []),
     gen_tcp:close(Sck),
     terminate(Reason, S#state{listen_socket=undefined});
 terminate(_Reason, _State) ->
