@@ -65,8 +65,8 @@ parse_args(end_of_burst, _Args, Cmd) ->
 parse_args(burst, Args, Cmd) ->
     parse_burst(Cmd, string:tokens(Args, " "));
 
-parse_args(PingPong, [$:|Token], Cmd) when PingPong == ping; PingPong == pong ->
-    Cmd#irc_cmd{args=[{token , Token}]};
+parse_args(PingPong, Servers, Cmd) when PingPong == ping; PingPong == pong ->
+    Cmd#irc_cmd{args=[{servers, irc_parser:split(Servers)}]};
 
 
 parse_args(join, [$:|Chans], Cmd) ->
@@ -608,6 +608,16 @@ user_test() ->
 
 user_to_list_test() ->
     ?assertMatch("nem!nem@localhost", to_list(#user{nick="nem",name="nem",host="localhost"})).
+
+ping_test() ->
+    ?assertMatch(#irc_cmd{name=ping,args=[{servers, {"localhost", []}}]},
+                 parse_line("PING localhost\r\n")),
+    ?assertMatch(#irc_cmd{name=ping,args=[{servers, {"localhost", "foobar"}}]},
+                 parse_line("PING localhost foobar\r\n")),
+    ?assertMatch(#irc_cmd{name=pong,args=[{servers, {"localhost", []}}]},
+                 parse_line("PONG localhost\r\n")),
+    ?assertMatch(#irc_cmd{name=pong,args=[{servers, {"localhost", "foobar"}}]},
+                 parse_line("PONG localhost foobar\r\n")).
 
 %numreply_test() ->
 %    ?assertMatch(Num when Num > 0, string:str(to_list(#irc_cmd{name=notregistered,}))).
