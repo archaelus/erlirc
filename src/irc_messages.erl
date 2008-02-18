@@ -466,6 +466,11 @@ to_list(myinfo, Args, Cmd = #irc_cmd{source=Server}) ->
     CModes = proplists:get_value(channelmodes, Args, "biklImnoPstv"), % XXX - pure lies?
     numeric_to_list(myinfo, Cmd, "~s ~s ~s ~s", [Host, Version, UModes, CModes]);
 
+to_list(PingPong, [{servers, {S1, ""}}], Cmd) when PingPong =:= ping; PingPong =:= pong ->
+    string:to_upper(atom_to_list(PingPong)) ++ " " ++ S1;
+to_list(PingPong, [{servers, {S1, S2}}], Cmd) when PingPong =:= ping; PingPong =:= pong ->
+    string:to_upper(atom_to_list(PingPong)) ++ " " ++ S1 ++ " " ++ S2;
+
 to_list(unknowncommand, Args, Cmd = #irc_cmd{source=Server}) ->
     UnknownCommand = proplists:get_value(command, Args, unknowncommand),
     Message = proplists:get_value(message, Args, "Unknown command"),
@@ -609,7 +614,7 @@ user_test() ->
 user_to_list_test() ->
     ?assertMatch("nem!nem@localhost", to_list(#user{nick="nem",name="nem",host="localhost"})).
 
-ping_test() ->
+pingpong_test() ->
     ?assertMatch(#irc_cmd{name=ping,args=[{servers, {"localhost", []}}]},
                  parse_line("PING localhost\r\n")),
     ?assertMatch(#irc_cmd{name=ping,args=[{servers, {"localhost", "foobar"}}]},
@@ -618,6 +623,17 @@ ping_test() ->
                  parse_line("PONG localhost\r\n")),
     ?assertMatch(#irc_cmd{name=pong,args=[{servers, {"localhost", "foobar"}}]},
                  parse_line("PONG localhost foobar\r\n")).
+
+pingpong_gen_test() ->
+    ?assertMatch("PING localhost\r\n",
+                 to_list(parse_line("PING localhost\r\n"))),
+    ?assertMatch("PING localhost foobar\r\n",
+                 to_list(parse_line("PING localhost foobar\r\n"))),
+    ?assertMatch("PONG localhost\r\n",
+                 to_list(parse_line("PONG localhost\r\n"))),
+    ?assertMatch("PONG localhost foobar\r\n",
+                 to_list(parse_line("PONG localhost foobar\r\n"))).
+    
 
 %numreply_test() ->
 %    ?assertMatch(Num when Num > 0, string:str(to_list(#irc_cmd{name=notregistered,}))).
