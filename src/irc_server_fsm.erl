@@ -67,7 +67,7 @@ start(Server, Socket, Options) when (is_port(Socket) or is_pid(Socket)),
 init(Options) ->
     Server = proplists:get_value(server, Options),
     Mod = proplists:get_value(mod, Options, gen_irc_server),
-    IrcServer = #irc_server{host=proplists:get_value(host, Options, "unknown")},
+    IrcServer = proplists:get_value(irc_server, Options),
     init(Mod, Server, proplists:get_value(socket, Options, false),
          #state{irc_server=IrcServer}).
 
@@ -135,6 +135,9 @@ welcome(State) ->
     %serversend(State, #irc_cmd{name=isupport}), % XXX probably need to ask parent server what we support
     {next_state, connected, State}.
 
+connected({irc, _, #irc_cmd{name=ping}}, State = #state{irc_server=S}) ->
+    serversend(State, #irc_cmd{name=pong, args=[{servers, {S#irc_server.host, S#irc_server.net}}]}),
+    {next_state, connected, State};
 connected({irc, _, #irc_cmd{name=Cmd}} = Event, State) ->
     ?INFO("Got ~p in state connected.", [Event]),
     serversend(State, #irc_cmd{name=unknowncommand,
