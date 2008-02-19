@@ -138,7 +138,7 @@ welcome(State) ->
 
 connected({irc, _, C = #irc_cmd{name=quit}}, State) ->
     serversend(State, C#irc_cmd{name=error}),
-    {stop, normal, closing};
+    {stop, normal, State};
 connected({irc, _, #irc_cmd{name=ping}}, State = #state{irc_server=S}) ->
     serversend(State, #irc_cmd{name=pong, args=[{servers, {S#irc_server.host, S#irc_server.net}}]}),
     {next_state, connected, State};
@@ -228,11 +228,12 @@ handle_info(Info, StateName, State) ->
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(Reason, StateName, S = #state{con=C}) when C =/= undefined ->
+    ?INFO("Closing irc_connection ~p (state ~p, reason ~p)", [C, StateName, Reason]),
     erlang:unlink(C),
     irc_connection:close(C),
-    terminate(Reason, StateName, S#state{con=undefined});
-terminate(Reason, StateName, _State) ->
-    ?INFO("Shutting down (state ~p) - ~p", [StateName, Reason]),
+    ok;
+terminate(Reason, StateName, State) ->
+    ?INFO("Shutting down (statename ~p) - ~p~nServer state:~p", [StateName, Reason, State]),
     ok.
 
 %%--------------------------------------------------------------------

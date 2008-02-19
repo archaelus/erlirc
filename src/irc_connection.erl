@@ -188,7 +188,7 @@ handle_info(Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(Reason, State = #state{sock=S}) when S /= undefined ->
+terminate(Reason, State = #state{sock=S}) when S =/= undefined ->
     gen_tcp:close(State#state.sock),
     terminate(Reason, State#state{sock=undefined});
 terminate(normal, _State) ->
