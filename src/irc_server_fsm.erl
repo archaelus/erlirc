@@ -19,7 +19,8 @@
 	 login_pass/2,
 	 login_nick/2,
 	 login_user/2,
-	 connected/2]).
+	 connected/2,
+         closing/2]).
 
 %% gen_fsm callbacks
 -export([init/1, handle_event/3,
@@ -135,6 +136,9 @@ welcome(State) ->
     %serversend(State, #irc_cmd{name=isupport}), % XXX probably need to ask parent server what we support
     {next_state, connected, State}.
 
+connected({irc, _, C = #irc_cmd{name=quit}}, State) ->
+    serversend(State, C#irc_cmd{name=error}),
+    {stop, normal, closing};
 connected({irc, _, #irc_cmd{name=ping}}, State = #state{irc_server=S}) ->
     serversend(State, #irc_cmd{name=pong, args=[{servers, {S#irc_server.host, S#irc_server.net}}]}),
     {next_state, connected, State};
@@ -143,6 +147,9 @@ connected({irc, _, #irc_cmd{name=Cmd}} = Event, State) ->
     serversend(State, #irc_cmd{name=unknowncommand,
                                args=[{command, Cmd}, {message, "Ye cannot do that here."}]}),
     {next_state, connected, State}.
+
+closing({irc, _Con, _Cmd}, State) ->
+    {next_state, closing, State}.
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -209,7 +216,8 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %handle_info({'DOWN',_Ref,process,Pid,Reason}, _StateName, S = #state{con=Pid}) when is_pid(Pid) ->
 %    ?INFO("Should really shutdown properly here.", []),
 %    {stop, Reason, S#state{con=undefined}};
-handle_info(_Info, StateName, State) ->
+handle_info(Info, StateName, State) ->
+    ?INFO("Unexpected info (state ~p): ~p", [Info, StateName]),
     {next_state, StateName, State}.
 
 %%--------------------------------------------------------------------
@@ -219,6 +227,10 @@ handle_info(_Info, StateName, State) ->
 %% necessary cleaning up. When it returns, the gen_fsm terminates with
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
+terminate(Reason, StateName, S = #state{con=C}) when C =/= undefined ->
+    erlang:unlink(C),
+    irc_connection:close(C),
+    terminate(Reason, StateName, S#state{con=undefined});
 terminate(Reason, StateName, _State) ->
     ?INFO("Shutting down (state ~p) - ~p", [StateName, Reason]),
     ok.

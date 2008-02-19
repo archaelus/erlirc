@@ -115,6 +115,11 @@ parse_args(endofnames, Arg, Cmd) ->
 parse_args(user, Args, Cmd) ->
     parse_user(Cmd, split_one_prefix_many_space(Args));
 
+parse_args(quit, [$:|Arg], Cmd) ->
+    Cmd#irc_cmd{args=[{message, Arg}]};
+parse_args(quit, [], Cmd) ->
+    Cmd#irc_cmd{args=[]};
+
 %% parse_args(Name, Args, Cmd) when Name == welcome
 %%                                  ;Name == yourhost
 %%                                  ;Name == created
@@ -395,7 +400,9 @@ to_list(pong, [{token, Token}], _Cmd) ->
 to_list(nick, [{name, Name}], _Cmd) ->
     "NICK " ++ Name;
 
-to_list(quit, _, _Cmd) ->
+to_list(quit, [{message, Msg}], _Cmd) ->
+    "QUIT :" ++ Msg;
+to_list(quit, [], _Cmd) ->
     "QUIT";
 
 to_list(join, Args, _cmd) ->
@@ -474,7 +481,16 @@ to_list(PingPong, [{servers, {S1, S2}}], Cmd) when PingPong =:= ping; PingPong =
 to_list(unknowncommand, Args, Cmd = #irc_cmd{source=Server}) ->
     UnknownCommand = proplists:get_value(command, Args, unknowncommand),
     Message = proplists:get_value(message, Args, "Unknown command"),
-    numeric_to_list(unknowncommand, Cmd, "~s :~s", [string:to_upper(atom_to_list(UnknownCommand)), Message]).
+    numeric_to_list(unknowncommand, Cmd, "~s :~s", [string:to_upper(atom_to_list(UnknownCommand)), Message]);
+
+%% Catchall for simple messages.
+to_list(CmdName, [{message, Msg}], _Cmd) ->
+    string:to_upper(atom_to_list(CmdName)) ++ " :" ++ Msg;
+to_list(CmdName, [], _Cmd) ->
+    string:to_upper(atom_to_list(CmdName)).
+
+
+
 
 numeric_to_list(Numeric, #irc_cmd{source=#irc_server{host=Server},target=#user{nick=Nick}}, Message, Args) ->
     numeric_to_list(Numeric, Server, Nick, Message, Args).
@@ -634,6 +650,18 @@ pingpong_gen_test() ->
     ?assertMatch("PONG localhost foobar\r\n",
                  to_list(parse_line("PONG localhost foobar\r\n"))).
     
+
+quit_test() ->
+    ?assertMatch(#irc_cmd{name=quit},
+                 parse_line("QUIT\r\n")),
+    ?assertMatch(#irc_cmd{name=quit, args=[{message, "Foo"}]},
+                 parse_line("QUIT :Foo\r\n")),
+    ?assertMatch("QUIT\r\n",
+                 to_list(parse_line("QUIT\r\n"))),
+    ?assertMatch("QUIT :Foo\r\n",
+                 to_list(parse_line("QUIT :Foo\r\n"))),
+    ?assertMatch("ERROR :Foo\r\n",
+                 to_list((parse_line("QUIT :Foo\r\n"))#irc_cmd{name=error})).
 
 %numreply_test() ->
 %    ?assertMatch(Num when Num > 0, string:str(to_list(#irc_cmd{name=notregistered,}))).

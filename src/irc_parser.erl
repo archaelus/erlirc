@@ -16,7 +16,7 @@
 parse_line(Line) ->
     parse_line(Line, #irc_cmd{raw=Line}).
 
-parse_line(Line = [$E,$R,$R,$O,$R,$\s|Rest], Cmd) ->
+parse_line(Line = [$E,$R,$R,$O,$R,$\s|_], Cmd) ->
     parse_command_part(Line, Cmd);
 parse_line([A,B,$\s|Rest], Cmd) when ((A == $[) or (A == $]) or
                                       (($0 =< A) and (A =< $9)) or
@@ -76,9 +76,14 @@ parse_command_part([D1,D2,D3|Rest], Cmd) when ?IS_DIGIT(D1),
     Cmd#irc_cmd{name=irc_numerics:numeric_to_atom([D1,D2,D3]),
                 args=nonl(Rest)};
 parse_command_part(Rest, Cmd) ->
-    {CommandName, Args} = split(Rest),
-    Cmd#irc_cmd{name=irc_commands:from_list(CommandName),
-                args=nonl(Args)}.
+    case split(Rest) of
+        {CommandName, ""} ->
+            Cmd#irc_cmd{name=irc_commands:from_list(nonl(CommandName)),
+                        args=[]};
+        {CommandName, Args} ->
+            Cmd#irc_cmd{name=irc_commands:from_list(CommandName),
+                        args=nonl(Args)}
+    end.
 
 split(Line) ->
     split($\s, Line).
@@ -100,6 +105,7 @@ is_digit(D) when ?IS_DIGIT(D) ->
     true;
 is_digit(_) -> false.
 
+%% No newline (nonl)
 nonl([$\r,$\n]) -> [];
 nonl([$\n]) -> [];
 nonl([]) -> [];
