@@ -37,7 +37,9 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    start_link("localnet", atom_to_list(?MODULE), ?PORT).
+    {ok, Pid} = gen_irc_server:start_link({local, ?MODULE}, ?MODULE, "localnet", atom_to_list(?MODULE), []),
+    {ok, _Listener} = gen_irc_server:listen(Pid, ?PORT),
+    {ok, Pid}.
 
 start_link(Net, Name, Port) ->
     {ok, Pid} = gen_irc_server:start_link(?MODULE, Net, Name, []),
