@@ -15,7 +15,8 @@
 -include_lib("kernel/include/inet.hrl").
 
 %% API
--export([start_link/4, start/4, listen/2, listen/3, new_client/3,
+-export([start_link/4, start/4, start_link/5, start/5,
+         listen/2, listen/3, new_client/3,
          nick/3, irc_server/1]).
 
 %% gen_server callbacks
@@ -57,6 +58,15 @@ start_link(Module, Net, ServerName, Args)
 start(Module, Net, ServerName, Args)
   when is_list(Net), is_list(ServerName), is_atom(Module), is_list(Args) ->
     gen_server:start(?MODULE, [{#irc_server{net=Net,host=ServerName},Module, Args}], []).
+
+start_link(Reg, Module, Net, ServerName, Args)
+  when is_list(Net), is_list(ServerName), is_atom(Module), is_list(Args) ->
+    gen_server:start_link(Reg, ?MODULE, [{#irc_server{net=Net,host=ServerName}, Module, Args}], []).
+
+start(Reg, Module, Net, ServerName, Args)
+  when is_list(Net), is_list(ServerName), is_atom(Module), is_list(Args) ->
+    gen_server:start(Reg, ?MODULE, [{#irc_server{net=Net,host=ServerName},Module, Args}], []).
+
 
 listen(Server, Port) ->
     listen(Server, {0,0,0,0}, Port).
