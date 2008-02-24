@@ -173,10 +173,14 @@ handle_cast(Msg, State) ->
 %% @end
 %% Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({'DOWN', MonitorRef, process, ContollingProcess, Info},
+handle_info({'DOWN', MonitorRef, process, ContollingProcess, Ok},
+            S = #state{controlling_process=ContollingProcess,
+                       cp_monitor=MonitorRef}) when Ok =:= normal; Ok =:= shutdown ->
+    {stop, Ok, S};
+handle_info({'DOWN', MonitorRef, process, ContollingProcess, Error},
             S = #state{controlling_process=ContollingProcess,
                        cp_monitor=MonitorRef}) ->
-    {stop, {controlling_process_exit, Info}, S};
+    {stop, {controlling_process, Error}, S};
 handle_info(Info, State) ->
     ?WARN("Unexpected info ~p", [Info]),
     {noreply, State}.
