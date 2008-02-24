@@ -473,17 +473,19 @@ to_list(myinfo, Args, Cmd = #irc_cmd{source=Server}) ->
     CModes = proplists:get_value(channelmodes, Args, "biklImnoPstv"), % XXX - pure lies?
     numeric_to_list(myinfo, Cmd, "~s ~s ~s ~s", [Host, Version, UModes, CModes]);
 
-to_list(PingPong, [{servers, {S1, ""}}], Cmd) when PingPong =:= ping; PingPong =:= pong ->
+to_list(PingPong, [{servers, {S1, ""}}], _Cmd) when PingPong =:= ping; PingPong =:= pong ->
     string:to_upper(atom_to_list(PingPong)) ++ " " ++ S1;
-to_list(PingPong, [{servers, {S1, S2}}], Cmd) when PingPong =:= ping; PingPong =:= pong ->
+to_list(PingPong, [{servers, {S1, S2}}], _Cmd) when PingPong =:= ping; PingPong =:= pong ->
     string:to_upper(atom_to_list(PingPong)) ++ " " ++ S1 ++ " " ++ S2;
 
-to_list(unknowncommand, Args, Cmd = #irc_cmd{source=Server}) ->
+to_list(unknowncommand, Args, Cmd = #irc_cmd{source=_Server}) ->
     UnknownCommand = proplists:get_value(command, Args, unknowncommand),
     Message = proplists:get_value(message, Args, "Unknown command"),
     numeric_to_list(unknowncommand, Cmd, "~s :~s", [string:to_upper(atom_to_list(UnknownCommand)), Message]);
 
 %% Catchall for simple messages.
+to_list(CmdName, [{numeric, true}], _Cmd) ->
+    irc_numerics:atom_to_numeric(CmdName);
 to_list(CmdName, [{message, Msg}], _Cmd) ->
     string:to_upper(atom_to_list(CmdName)) ++ " :" ++ Msg;
 to_list(CmdName, [], _Cmd) ->
