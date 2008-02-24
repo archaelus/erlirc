@@ -134,6 +134,7 @@ welcome(State) ->
     serversend(State, #irc_cmd{name=created}), % XXX probably need to ask parent server when we were created
     serversend(State, #irc_cmd{name=myinfo}), % XXX probably need to ask parent server what we support
     %serversend(State, #irc_cmd{name=isupport}), % XXX probably need to ask parent server what we support
+    serversend(State, #irc_cmd{name=nomotd, args=[{numeric,true}]}), % XXX probably need to ask parent server for a MOTD
     {next_state, connected, State}.
 
 connected({irc, _, C = #irc_cmd{name=quit}}, State) ->
@@ -227,7 +228,7 @@ handle_info(Info, StateName, State) ->
 %% necessary cleaning up. When it returns, the gen_fsm terminates with
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(Reason, StateName, S = #state{con=C}) when C =/= undefined ->
+terminate(Reason, StateName, #state{con=C}) when C =/= undefined ->
     ?INFO("Closing irc_connection ~p (state ~p, reason ~p)", [C, StateName, Reason]),
     erlang:unlink(C),
     irc_connection:close(C),
