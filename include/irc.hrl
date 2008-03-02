@@ -57,6 +57,7 @@
                topic = #topic{},
                type = public,
                members = [],
+               net,
                info}).
 
 
