@@ -45,9 +45,7 @@
 start(Server, Socket, Options) when (is_port(Socket) or is_pid(Socket)),
 				    is_list(Options), is_pid(Server) ->
     {ok, Fsm} = gen_fsm:start(?MODULE, [{server, Server},{socket, true}|Options], []),
-    SendFn = fun (Pid, Term) -> 
-                     gen_fsm:send_event(Pid, {irc, self(), Term})
-             end,
+    SendFn = fun irc_server_fsm_send/2,
     {ok, Pid} = irc_connection:sock_start(Fsm, Socket,
                                           [{sendfn, SendFn}|Options]),
     ok = irc_connection:connect(Pid, Socket),
@@ -259,3 +257,8 @@ csend(#state{con=C}, Term) ->
     csend(C, Term);
 csend(Pid, Cmd) when is_pid(Pid), is_record(Cmd, irc_cmd) ->
     irc_connection:send_cmd(Pid, Cmd).
+
+irc_server_fsm_send(Pid, E = {disconnected, _}) ->
+    gen_fsm:send_all_state_event(Pid, {irc, self(), E});
+irc_server_fsm_send(Pid, Term) -> 
+    gen_fsm:send_event(Pid, {irc, self(), Term}).
