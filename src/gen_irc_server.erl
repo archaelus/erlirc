@@ -149,7 +149,7 @@ handle_call({listen, Addr, Port}, _From, State = #state{listeners=L, server=IrcS
     end;
 handle_call({nick, Pid, Nick, Pass}, _From, S = #state{server=Server})
   when is_pid(Pid) ->
-    GprocUserName = gproc:name({irc_user, Server#irc_server.net, Nick}),
+    GprocUserName = irc_user:gproc_name(Server#irc_server.net, Nick),
     case gproc:where(GprocUserName) of
         undefined ->
             case modapply(handle_nick, [Nick, Pass], S) of
