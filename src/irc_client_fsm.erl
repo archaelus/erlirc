@@ -120,9 +120,7 @@ init([Conf = #conf{}, Nick]) ->
 connecting(timeout, State = #state{conf=Conf}) ->
     {ok, Pid} = irc_connection:start_link(Conf#conf.host,
                                           Conf#conf.port,
-                                          [{sendfn, fun (Pid, Term) -> 
-                                                            gen_fsm:send_event(Pid, {irc, self(), Term})
-                                                    end}]),
+                                          [{sendfn, fun irc_client_fsm_send/2}]),
     {next_state, wait_connected, State#state{con=Pid}}.
 
 wait_connected({irc, Pid, connected}, State = #state{conf=Conf}) ->
@@ -198,6 +196,9 @@ connected(E = {irc, _Pid, #irc_cmd{name=part}}, State) ->
     handle_part(E, State);
 connected({irc, _Pid, C}, State) ->
     ?INFO("(~p) ~s~n~p", [C#irc_cmd.name, C#irc_cmd.raw, C]),
+    {next_state, connected, State};
+connected(Event, State) ->
+    ?INFO("(connected) Unexpected event, ~p", [Event]),
     {next_state, connected, State}.
 
 handle_join({irc, _Pid, #irc_cmd{source=#user{nick=Me},
@@ -335,12 +336,8 @@ handle_sync_event(channels, _From, StateName, S = #state{channels=C}) ->
     {reply, {ok, C}, StateName, S};
 handle_sync_event(nick, _From, StateName, S = #state{nick=N}) ->
     {reply, {ok, N}, StateName, S};
-handle_sync_event(shutdown, _From, _StateName, S = #state{con=P}) when is_pid(P) ->
-    unlink(P),
-    irc_connection:close(P),
-    {stop, shutdown, ok, S#state{con=undefined}};
 handle_sync_event(shutdown, _From, _StateName, S) ->
-    {stop, shutdown, ok, S};
+    {stop, normal, ok, S};
 handle_sync_event(Event, _From, StateName, State) ->
     ?WARN("Unexpected event ~p in state ~p", [Event, StateName]),
     {next_state, StateName, State}.
@@ -365,6 +362,10 @@ handle_info(_Info, StateName, State) ->
 %% necessary cleaning up. When it returns, the gen_fsm terminates with
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
+terminate(Reason, StateName, S = #state{con=P}) when is_pid(P) ->
+    unlink(P),
+    irc_connection:close(P),
+    terminate(Reason, StateName, S#state{con=undefined});
 terminate(_Reason, _StateName, _State) ->
     ok.
 
@@ -379,3 +380,8 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+irc_client_fsm_send(Pid, E = {disconnected, _}) ->
+    gen_fsm:send_all_state_event(Pid, {irc, self(), E});
+irc_client_fsm_send(Pid, Term) -> 
+    gen_fsm:send_event(Pid, {irc, self(), Term}).
