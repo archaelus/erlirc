@@ -2,3 +2,6 @@ ebin/*.beam
 *~
 src/TAGS
 priv/log/*
+doc/*
+misc/*
+erl_crash.dump
