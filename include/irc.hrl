@@ -7,17 +7,18 @@
 
 -define(ERLIRC_VERSION, "erlirc-0.1").
 
--record(user, {nick = "missingnick",
+-record(user, {nick,
                nick_ts,
                name = "missingname",
                realname = "missingrealname",
                host = "missinghost",
                mode,
                description,
-               info,
+               pid,
                net}).
 
--record(irc_cmd, {raw,
+-record(irc_cmd, {ref,
+                  raw,
                   source,
                   target,
                   name,
@@ -47,14 +48,14 @@
                      net}).
 
 -record(topic, {text,
-                topic_ts,
+                ts,
                 author}).
 
 -record(chan, {numeric,
                name,
                chan_ts,
                mode,
-               topic = #topic{},
+               topic,
                type = public,
                members = [],
                net,
