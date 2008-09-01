@@ -38,7 +38,7 @@ docs: ${ERL_FILES}
 	erl -noshell -run edoc_run application "'$(APP_NAME)'" '"."' '[{def,{vsn,"$(VSN)"}}]'
 
 test: ${BEAM_FILES}
-	erl $(CODEPATH) $(CODEPATH_JUNGERL) -config priv/${APP_NAME} -eval "lists:map(fun(A) -> {A,application:start(A)} end, [${APP_DEPS}]), application:load(${APP_NAME}), lists:foreach(fun (M) -> io:fwrite(\"Testing ~p:~n\", [M]), eunit:test(M) end, [`perl -e 'print join(",", qw(${MODULES}));'`])." -s init stop -noshell
+	erl $(CODEPATH) $(CODEPATH_JUNGERL) -config priv/${APP_NAME} -eval "lists:map(fun(A) -> {A,application:start(A)} end, [${APP_DEPS}]), application:load(${APP_NAME}), gproc:start_link(), lists:foreach(fun (M) -> io:fwrite(\"Testing ~p:~n\", [M]), eunit:test(M) end, [`perl -e 'print join(",", qw(${MODULES}));'`])." -s init stop -noshell
 
 xref: ${BEAM_FILES}
 	erl $(CODEPATH) $(CODEPATH_JUNGERL) -eval "xref:start(${APP_NAME}), io:fwrite(\"~n~nXref: ~p~n~n\", [xref:d(\"ebin/\")])." -s init stop -noshell
