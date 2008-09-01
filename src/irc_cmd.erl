@@ -29,6 +29,16 @@ part(Channel, Message) ->
 nick(Nick) ->
     #irc_cmd{name=nick,args=[{name, Nick}]}.
 
+yourhost(Host, Version) ->
+    #irc_cmd{name=yourhost,
+             args=[{host, Host}, {version, Version}]}.
+
+created({Date,Time}) ->
+    #irc_cmd{name=created, args = [{created, {Date,Time}}]}.
+
+topic() ->
+    #irc_cmd{name=topic}.
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
