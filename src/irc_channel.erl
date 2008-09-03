@@ -15,6 +15,7 @@
 
 %% API
 -export([start_link/2
+         ,start_monitor/2
          ,shutdown/1
          ,gproc_name/1]).
 
@@ -35,6 +36,15 @@
 %%--------------------------------------------------------------------
 start_link(Net, Name) ->
     gen_server:start_link(?MODULE, [#chan{net=Net,name=Name}], []).
+
+start_monitor(Net, Name) ->
+    case gen_server:start(?MODULE, [#chan{net=Net,name=Name}], []) of
+        {ok, Pid} ->
+            Ref = erlang:monitor(process, Pid),
+            {ok, Pid, Ref};
+        Else ->
+            Else
+    end.
 
 gproc_name(#chan{net=Net,name=Name})->
     gproc:name({irc_chan, Net, Name}).
