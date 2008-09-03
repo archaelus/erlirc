@@ -231,7 +231,7 @@ broadcast(Msg, Members) ->
                   members(Members)).
 
 chan_msg(Msg, Ref, C = #chan{}) when is_reference(Ref) ->
-    {irc, channel, Ref, {self(), C#chan.name}, Msg}.
+    gen_irc:msg(channel, Ref, C#chan.name, Msg).
 
 broadcast_chan_msg(Msg, Ref, C) ->
     %%?INFO("Broadcasting ~p/~p to channel", [Msg, Ref]),
