@@ -16,13 +16,14 @@
 %% API
 -export([start_link/2
          ,shutdown/1
-         ,gproc_name/1]).
+         ,gproc_name/1
+         ,listen/2]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {net, name, users = [], channels = []}).
+-record(state, {net, name, users = [], channels = [], listener}).
 -record(user, {nick, pid, ref}).
 -record(chan, {name, pid, ref}).
 -define(SERVER, ?MODULE).
@@ -43,6 +44,9 @@ gproc_name(#state{net=Net,name=Name})->
 
 shutdown(Server) ->
     gen_server:call(Server, shutdown).
+
+listen(Server, Port) ->
+    gen_server:call(Server, {listen, Port}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -73,6 +77,12 @@ init([S = #state{}]) ->
 %% @doc Call message handler callbacks
 %% @end
 %%--------------------------------------------------------------------
+handle_call({listen, Port}, _From, State = #state{listener=undefined}) ->
+    {ok, L} = tcp_server:listen(Port, [{client_fn, fun handle_client/2}]),
+    {reply, {ok, L}, State#state{listener=L}};
+handle_call({listen, Port}, _From, State = #state{listener=Pid}) when is_pid(Pid) ->
+    {reply, {already_running, Pid}, State};
+
 handle_call(Call, _From, State) ->
     ?WARN("Unexpected call ~p.", [Call]),
     {noreply, State}.
@@ -154,6 +164,10 @@ handle_info(M = {'DOWN', Ref, process, _Pid, _}, S = #state{channels=C,users=U})
 handle_info(Info, State) ->
     ?WARN("Unexpected info ~p", [Info]),
     {noreply, State}.
+
+
+handle_client(Parent, Sock) ->
+    irc_s2c_fsm:sock_start(Parent, Sock, []).
 
 %%--------------------------------------------------------------------
 %% @private
