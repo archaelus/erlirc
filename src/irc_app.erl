@@ -10,7 +10,9 @@
 -behaviour(application).
 
 %% Application callbacks
--export([start/2, stop/1]).
+-export([start/2, stop/1,
+         start/0, stop/0,
+         config/1]).
 
 %%====================================================================
 %% Application callbacks
@@ -42,6 +44,43 @@ start(_Type, StartArgs) ->
 stop(_State) ->
     ok.
 
+%% @spec start() -> ok
+%% @doc Start the erlirc server.
+start() ->
+    application:load(erlirc),
+    {ok, Deps} = application:get_key(erlirc, applications),
+    true = lists:all(fun ensure_started/1, Deps),
+    application:start(erlirc).
+
+%% @spec stop() -> ok
+%% @doc Stop the erlirc server.
+stop() ->
+    application:stop(erlirc).
+
+%% @spec config(Item::atom()) -> term()
+%% @doc Retrieve the configuration value for key Item from the erlirc
+%% OTP application environment.
+config(Item) ->
+    case application:get_env(erlirc, Item) of
+        {ok, Term} -> Term;
+        undefined ->
+            error_logger:error_msg("erlirc not correctly configured: missing ~p",
+                                   [Item]),
+            exit(erlirc_misconfigured)
+    end.
+
+
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+ensure_started(App) ->
+    case application:start(App) of
+	ok ->
+	    true;
+	{error, {already_started, App}} ->
+	    true;
+        Else ->
+            error_logger:error_msg("Couldn't start ~p: ~p", [App, Else]),
+            Else
+    end.
