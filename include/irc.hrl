@@ -45,7 +45,8 @@
                     description}).
 
 -record(irc_server, {host,
-                     net}).
+                     net,
+                     pid}).
 
 -record(topic, {text,
                 ts,
