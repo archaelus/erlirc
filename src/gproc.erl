@@ -44,7 +44,7 @@
 
 start_local() ->
     create_tabs(),
-    gen_leader:start(?SERVER, ?MODULE, [], [{debug, []}]).
+    gen_leader:start(?SERVER, ?MODULE, [], []).
 
 go_global() ->
     ?INFO("calling go_global (Ns = ~p)~n", [[node()|nodes()]]),
@@ -67,7 +67,7 @@ start_link() ->
 start_link(Nodes) ->
     create_tabs(),
     gen_leader:start_link(
-      ?SERVER, Nodes, [],?MODULE, [], [{debug,[trace]}]).
+      ?SERVER, Nodes, [],?MODULE, [], []).
 
 where({n, C, _Name} = Key) when C==l; C==g ->
     case ets:lookup(?TAB, {Key, n}) of
