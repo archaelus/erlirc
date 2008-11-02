@@ -125,7 +125,9 @@ init([{sock, Conf, Sock, Owner}]) ->
 handle_call(peername, _From, State = #state{sock=Sock}) ->
     {reply, inet:peername(Sock), State};
 handle_call({connected, Socket}, _From, State) ->
-    inet:setopts(Socket, [{active, true}]),
+    inet:setopts(Socket, [{active, true},
+                          {packet, line},
+                          {packet_size, 512}]),
     o_send(State, connected),
     {reply, ok, State#state{sock=Socket}};
 handle_call({send_line, Line}, _From, State = #state{sock=Sock}) ->
