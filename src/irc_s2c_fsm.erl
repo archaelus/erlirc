@@ -272,7 +272,8 @@ join([Channel | Rest], S) ->
     receive
         {irc, channel, Ref, {Pid, Channel}, {joined, Topic, Mode, Who}} ->
             erlang:monitor(process, Pid), % Monitor channel
-            serversend(S, #irc_cmd{name=join, args=[{channels, [Channel]}]}),
+            csend(S, #irc_cmd{name=join, target=S#state.user,
+                              args=[{channels, [Channel]}]}),
             serversend(S, #irc_cmd{name=namreply, args=[{channel, Channel},
                                                         {members, Who},
                                                         {channel_type, Mode}]}),
