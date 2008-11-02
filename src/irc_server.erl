@@ -197,7 +197,7 @@ handle_info(M = {'DOWN', Ref, process, _Pid, _}, S = #state{channels=C,users=U})
         false ->
             case lists:keysearch(Ref, #chan.ref, C) of
                 {value, Chan} ->
-                    {noreply, S#state{channels=lists:delete(Chan,c)}};
+                    {noreply, S#state{channels=lists:delete(Chan,C)}};
                 false ->
                     ?WARN("Unexpected monitor message ~p",[M]),
                     {noreply, S}
