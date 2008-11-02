@@ -140,5 +140,18 @@ quit_test() ->
     ?assertMatch("ERROR :Foo\r\n",
                  to_list((parse_line("QUIT :Foo\r\n"))#irc_cmd{name=error})).
 
+nomotd_to_list_test() ->
+    ?assertMatch(":localhost 422 nem :NOMOTD\r\n",
+                 to_list(#irc_cmd{source=#irc_server{host="localhost"},
+                                  target=#user{nick="nem"},
+                                  name=nomotd,
+                                  args=[]})),
+    ?assertMatch(":localhost 422 nem :No MOTD\r\n",
+                 to_list(#irc_cmd{source=#irc_server{host="localhost"},
+                                  target=#user{nick="nem"},
+                                  name=nomotd,
+                                  args=[{message, "No MOTD"}]})).
+    
+
 %numreply_test() ->
 %    ?assertMatch(Num when Num > 0, string:str(to_list(#irc_cmd{name=notregistered,}))).

@@ -352,10 +352,17 @@ parse_burst_userdata(Cmd, []) ->
     Cmd.
 
 %%--------------------------------------------------------------------
-to_list(Cmd) when is_record(Cmd, irc_cmd) ->
+to_list(Cmd = #irc_cmd{source=#irc_server{},target=#user{nick=Nick},name=Name,args=Args}) ->
+    to_list(Cmd#irc_cmd.source) ++ " "
+        ++ irc_numerics:atom_to_numeric(Name) ++ " "
+        ++ Nick ++ " "
+        ++ to_list(Name, Args, Cmd) ++ "\r\n";
+to_list(Cmd = #irc_cmd{}) ->
     to_list(Cmd#irc_cmd.name, Cmd#irc_cmd.args, Cmd) ++ "\r\n";
 to_list(#user{} = User) ->
-    user_to_list(User).
+    user_to_list(User);
+to_list(#irc_server{host=H}) ->
+    [ $: | H ].
 
 to_list(pass, Args, _Cmd) when length(Args) >= 3 ->
     Pass = proplists:get_value(password, Args),
@@ -493,13 +500,16 @@ to_list(unknowncommand, Args, Cmd = #irc_cmd{source=_Server}) ->
     Message = proplists:get_value(message, Args, "Unknown command"),
     numeric_to_list(unknowncommand, Cmd, "~s :~s", [string:to_upper(atom_to_list(UnknownCommand)), Message]);
 
+to_list(error, [{message, Msg}], _Cmd) ->
+    "ERROR :" ++ Msg;
+
 %% Catchall for simple messages.
 to_list(CmdName, [{numeric, true}], _Cmd) ->
     irc_numerics:atom_to_numeric(CmdName);
 to_list(CmdName, [{message, Msg}], _Cmd) ->
-    string:to_upper(atom_to_list(CmdName)) ++ " :" ++ Msg;
+    ":" ++ Msg;
 to_list(CmdName, [], _Cmd) ->
-    string:to_upper(atom_to_list(CmdName)).
+    ":" ++ string:to_upper(atom_to_list(CmdName)).
 
 
 
