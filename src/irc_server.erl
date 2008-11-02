@@ -237,10 +237,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 send(Msg, {To, _Nick}) when is_pid(To); is_atom(To) ->
-    ?INFO("To (~p)~p: ~p", [_Nick, To, Msg]),
+    %%?INFO("To (~p)~p: ~p", [_Nick, To, Msg]),
     To ! Msg;
 send(Msg, To) when is_pid(To); is_atom(To) ->
-    ?INFO("To ~p: ~p", [To, Msg]),
+    %%?INFO("To ~p: ~p", [To, Msg]),
     To ! Msg.
 
 srv_msg(Msg, Ref, C = #state{}) when is_reference(Ref) ->

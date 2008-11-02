@@ -117,7 +117,6 @@ login_user({irc, _, #irc_cmd{name=user,args=Args}},
     RealName = proplists:get_value(real_name, Args),
     User = U#user{name=UserName,
                   realname=RealName},
-    ?INFO("~p logged in.", [User]),
     welcome(State#state{user=User});
 login_user(Cmd = {irc, _, _}, State) ->
     ?INFO("Got ~p in state login_user", [Cmd]),
