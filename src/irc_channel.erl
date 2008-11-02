@@ -68,7 +68,7 @@ shutdown(Pid) ->
 init([Chan = #chan{}]) ->
     true = gproc:reg(gproc_name(Chan),self()),
     {ok, Chan#chan{topic=undefined,
-                   mode=""}}.
+                   mode=public}}.
 
 %%--------------------------------------------------------------------
 %% @private
