@@ -214,10 +214,10 @@ find_member(Ref, [M = #member{ref=Ref}|_]) when is_reference(Ref) -> M;
 find_member(Member, [_|Rest]) ->
     find_member(Member, Rest).
 
-default_role(#chan{members=[]}) -> operator;
+default_role(#chan{members=[]}) -> op;
 default_role(#chan{members=_}) -> user.
 
-default_mode(operator) -> "o";
+default_mode(op) -> "@";
 default_mode(user) -> "".
 
 members(#chan{members=M}) -> M;
@@ -251,8 +251,8 @@ find_member_test() ->
     Member1 = #member{pid=Member1Pid,
                       ref=Member1Ref,
                       nick="Foo",
-                      role=operator,
-                      mode="o"},
+                      role=op,
+                      mode="@"},
     Member2Ref = make_ref(),
     Member2Pid = list_to_pid("<0.21.22>"),
     Member2 = #member{pid=Member2Pid,

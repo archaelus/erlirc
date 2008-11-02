@@ -17,7 +17,7 @@ channel_test() ->
     Pid ! {irc, channel, Ref1, {Self, "test"}, join},
     receive
         {irc, channel, Ref1, {Pid, "example"},
-         {joined, undefined, _, [{"test", operator}]}} ->
+         {joined, undefined, _, [{"test", op}]}} ->
             ?assert(true);
         Other ->
             ?ERR("Got ~p", [Other]),
