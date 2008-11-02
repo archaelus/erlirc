@@ -84,7 +84,13 @@ to_list_join_test() ->
     ?assertMatch("JOIN #c1,#c2\r\n",
                  to_list(#irc_cmd{name=join,
                                   args=[{channels,
+                                         ["#c1", "#c2"]}]})),
+    ?assertMatch(":nem!nem@localhost JOIN #c1,#c2\r\n",
+                 to_list(#irc_cmd{name=join,
+                                  target=#user{nick="nem",name="nem",host="localhost"},
+                                  args=[{channels,
                                          ["#c1", "#c2"]}]})).
+    
 decode_ctcp_delims_test() ->
     ?assertMatch([{ctcp, "VERSION"}],
                  decode_ctcp_delims([1] ++ "VERSION" ++ [1])), 

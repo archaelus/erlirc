@@ -373,6 +373,19 @@ to_list(Cmd = #irc_cmd{source=#irc_server{},
                 ++ Nick ++ " "
                 ++ to_list(Name, Args, Cmd) ++ "\r\n"
     end;
+to_list(Cmd=#irc_cmd{source=undefined,
+                     target=#user{},
+                     name=Name,
+                     args=Args}) ->
+    case irc_numerics:atom_to_numeric(Name) of
+        atom_not_numeric ->
+            ":" ++ to_list(Cmd#irc_cmd.target) ++ " "
+                ++ to_list(Name, Args, Cmd) ++ "\r\n";
+        Numeric ->
+            ":" ++ to_list(Cmd#irc_cmd.target) ++ " "
+                ++ Numeric ++ " "
+                ++ to_list(Name, Args, Cmd) ++ "\r\n"
+    end;
 to_list(Cmd = #irc_cmd{}) ->
     to_list(Cmd#irc_cmd.name, Cmd#irc_cmd.args, Cmd) ++ "\r\n";
 to_list(#user{} = User) ->
