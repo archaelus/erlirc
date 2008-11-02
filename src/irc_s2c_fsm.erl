@@ -234,6 +234,16 @@ handle_info(Info, StateName, State) ->
 terminate(Reason, StateName, #state{con=C}) when is_pid(C) ->
     ?INFO("Closing irc_connection ~p (state ~p, reason ~p)", [C, StateName, Reason]),
     %% Should inform client of errors before shutting down?
+    Msg = case Reason of
+              normal -> "Client quit";
+              {irc_server_error, _R} -> "Random server error";
+              _ -> no_message
+          end,
+    case Msg of
+        List when is_list(List) ->
+            csend(C, C#irc_cmd{name=error,args=[{message, Msg}]});
+        no_message -> ok
+    end,
     erlang:unlink(C),
     irc_connection:close(C),
     ok;
