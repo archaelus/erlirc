@@ -137,7 +137,7 @@ handle_call({send_line, Line}, _From, State = #state{sock=Sock}) ->
             {stop, {error, {line_send, Line, Reason}}, {error, Reason}, State}
     end;
 handle_call(close, _From, State) ->
-    {stop, normal, State};
+    {stop, normal, ok, State};
 handle_call(Call, _From, State) ->
     ?WARN("Unhandled call ~p", [Call]),
     {noreply, State}.
