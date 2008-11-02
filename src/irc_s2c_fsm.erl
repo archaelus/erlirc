@@ -208,9 +208,12 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %% other message than a synchronous or asynchronous event
 %% (or a system message).
 %%--------------------------------------------------------------------
-%handle_info({'DOWN',_Ref,process,Pid,Reason}, _StateName, S = #state{con=Pid}) when is_pid(Pid) ->
-%    ?INFO("Should really shutdown properly here.", []),
-%    {stop, Reason, S#state{con=undefined}};
+handle_info({'DOWN',_Ref,process,Pid,Reason}, _StateName,
+            S = #state{irc_server=#irc_server{pid=Pid}}) when is_pid(Pid) ->
+    {stop, {irc_server_error, Reason}, S};
+handle_info({'DOWN',_Ref,process,Pid,Reason}, _StateName,
+            S = #state{con=Pid}) when is_pid(Pid) ->
+    {stop, {irc_con_error, Reason}, S#state{con=undefined}};
 handle_info(Info, StateName, State) ->
     ?INFO("Unexpected info (state ~p): ~p", [Info, StateName]),
     {next_state, StateName, State}.
