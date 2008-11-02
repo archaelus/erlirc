@@ -495,7 +495,8 @@ atom_to_numeric(rpl_endofwatchlist) -> "607";
 atom_to_numeric(rpl_dumping) -> "640";
 atom_to_numeric(rpl_dumprpl) -> "641";
 atom_to_numeric(rpl_eodump) -> "642";
-atom_to_numeric(numericerror) -> "999".
+atom_to_numeric(numericerror) -> "999";
+atom_to_numeric(_) -> atom_not_numeric.
 
 %%% P10 Base64
 
@@ -539,7 +540,7 @@ p10b64_to_int_test() ->
     ?assert(p10b64_to_int("A]]") == 4095),
     ?assert(p10b64_to_int("]]") == 4095).
 
-pow(Num, 0) ->
+pow(_Num, 0) ->
     1;
 pow(Num, Exp) ->
     Num * pow(Num, Exp - 1).
