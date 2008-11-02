@@ -60,7 +60,7 @@
                type = public,
                members = [],
                net,
-               info}).
+               pid}).
 
 
 -record(ctcp_cmd, {name,
