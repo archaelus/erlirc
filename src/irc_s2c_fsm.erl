@@ -29,7 +29,9 @@
 -record(state, {con,
                 user = #user{},
                 irc_server = #irc_server{},
-                pass}).
+                pass,
+                chans=[],
+                nicks=[]}).
 
 %%====================================================================
 %% API
@@ -131,11 +133,15 @@ welcome(State) ->
     serversend(State, #irc_cmd{name=nomotd}), % XXX probably need to ask parent server for a MOTD
     {next_state, connected, State}.
 
-connected({irc, _, C = #irc_cmd{name=quit}}, State) ->
-    serversend(State, C#irc_cmd{name=error}),
+connected({irc, _, #irc_cmd{name=quit}}, State) ->
     {stop, normal, State};
 connected({irc, _, #irc_cmd{name=ping}}, State = #state{irc_server=S}) ->
     serversend(State, #irc_cmd{name=pong, args=[{servers, {S#irc_server.host, S#irc_server.net}}]}),
+    {next_state, connected, State};
+connected({irc, _, #irc_cmd{name=join,args=[{channels, Chans}]}}, State) ->
+    join(Chans, State);
+connected({irc, _, #irc_cmd{name=invalid_cmd}}, State) ->
+    serversend(State, #irc_cmd{name=error, args=[{message, "Invalid command"}]}),
     {next_state, connected, State};
 connected({irc, _, #irc_cmd{name=Cmd}} = Event, State) ->
     ?INFO("Got ~p in state connected.", [Event]),
@@ -247,6 +253,46 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+join([], State) ->
+    {next_state, connected, State};
+join([Channel | Rest], S) ->
+    Server = serverpid(S),
+    Ref = erlang:monitor(process, Server),
+    Server ! gen_irc:msg(channel, Ref, nick(S), {join, Channel}),
+    receive
+        {irc, channel, Ref, {Pid, Channel}, {joined, Topic, Mode, Who}} ->
+            erlang:monitor(process, Pid), % Monitor channel
+            serversend(S, #irc_cmd{name=join, args=[{channels, [Channel]}]}),
+            serversend(S, #irc_cmd{name=namreply, args=[{channel, Channel},
+                                                        {members, Who},
+                                                        {channel_type, Mode}]}),
+            serversend(S, #irc_cmd{name=endofnames}),
+            NewChan = #chan{name=Channel,pid=Pid},
+            join(Rest, S#state{chans=case chan(Channel, S) of
+                                         undefined -> [NewChan|S#state.chans];
+                                         _ -> S#state.chans
+                                     end});
+	{irc, channel, Ref, _Server, {error, Numeric}} ->
+	    numreply(S, Numeric, ""),
+            {next_state, connected, S};
+        {'DOWN', Ref, process, _Server, Err} ->
+            {stop, {irc_server_error, Err}, S}
+    after 5000 ->
+            {stop, {irc_server_error, timeout}, S}
+    end.
+
+chan(Chan, #state{chans=Chans}) ->
+    case lists:keysearch(Chan, #chan.name, Chans) of
+        {value, C} -> C;
+        false -> undefined
+    end.
+
+chanpid(Chan, State) ->
+    case chan(Chan, State) of
+        undefined -> undefined;
+        C -> C#chan.pid
+    end.
+
 numreply(Where, Numeric, Message) when is_atom(Numeric) ->
     csend(Where, #irc_cmd{name=Numeric, args=[{message, Message}]}).
 
@@ -267,3 +313,7 @@ server(#state{irc_server=S}) -> S.
 
 serverpid(S = #state{}) -> serverpid(server(S));
 serverpid(#irc_server{pid=P}) -> P.
+
+nick(#state{user=U}) -> nick(U);
+nick(#user{nick=N}) -> nick(N);
+nick(N) when is_list(N) -> N.
