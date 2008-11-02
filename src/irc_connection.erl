@@ -169,9 +169,10 @@ handle_info({tcp, _Port, Line}, State) ->
     try parse(State, Line) of
         Term -> o_send(State, Term)
     catch
-        throw:Reason -> ?ERR("Parser crashed ~nLine: ~s~nLine: ~p~nReason: ~p~n", [Line, Line, Reason]);
-        exit:Reason -> ?ERR("Parser crashed ~nLine: ~s~nLine: ~p~nReason: ~p~n", [Line, Line, Reason]);
-        error:Reason -> ?ERR("Parser crashed ~nLine: ~s~nLine: ~p~nReason: ~p~n", [Line, Line, Reason])
+        Class:Reason -> 
+            ?ERR("IRC Parser crashed (~p) ~nLine: ~s~nLine: ~p~nReason: ~p~n",
+                 [Class, Line, Line, Reason]),
+                o_send(State, #irc_cmd{name=invalid_cmd,raw=Line})
     end,
     {noreply, State};
 handle_info({tcp_closed, _Port}, State) ->
