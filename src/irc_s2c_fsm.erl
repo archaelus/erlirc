@@ -225,8 +225,9 @@ handle_info(Info, StateName, State) ->
 %% necessary cleaning up. When it returns, the gen_fsm terminates with
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(Reason, StateName, #state{con=C}) when C =/= undefined ->
+terminate(Reason, StateName, #state{con=C}) when is_pid(C) ->
     ?INFO("Closing irc_connection ~p (state ~p, reason ~p)", [C, StateName, Reason]),
+    %% Should inform client of errors before shutting down?
     erlang:unlink(C),
     irc_connection:close(C),
     ok;
