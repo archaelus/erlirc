@@ -101,7 +101,7 @@ parse_args(namreply, Arg, Cmd) ->
             Members = [string:strip(hd(MemberStrs), left, $:)|tl(MemberStrs)],
             Cmd#irc_cmd{args=[{channel, string:strip(Chan, right, $\s)},
                               {members, lists:map(fun parse_nick/1, Members)},
-                              {channel_type, parse_chantype(ChanType)}],
+                              {channel_type, list_to_chantype(ChanType)}],
                         target=Nick}
     end;
 
@@ -145,21 +145,27 @@ parse_args(_Name, Args, Cmd) ->
 %%--------------------------------------------------------------------
 
 parse_nick([$@|Nick]) ->
-    {op, Nick};
+    {Nick, op};
+parse_nick([$\%|Nick]) ->
+    {Nick, halfop};
 parse_nick([$+|Nick]) ->
-    {voice, Nick};
+    {Nick, voice};
 parse_nick(Nick) ->
-    {user, Nick}.
+    {Nick, user}.
 
 parse_user(Cmd, {[UserName, Mode, _Unused], RealName}) ->
     Cmd#irc_cmd{args=[{user_name, UserName},
 		      {real_name, RealName},
 		      {mode, Mode}]}.
 
-parse_chantype("@") -> secret;
-parse_chantype("*") -> private;
-parse_chantype("=") -> public;
-parse_chantype(T) -> throw({unknown_chantype, T}).
+list_to_chantype("@") -> secret;
+list_to_chantype("*") -> private;
+list_to_chantype("=") -> public.
+
+chantype_to_list(secret) -> "@";
+chantype_to_list(private) -> "*";
+chantype_to_list(public) -> "=".
+
 
 %%--------------------------------------------------------------------
 
@@ -352,11 +358,21 @@ parse_burst_userdata(Cmd, []) ->
     Cmd.
 
 %%--------------------------------------------------------------------
-to_list(Cmd = #irc_cmd{source=#irc_server{},target=#user{nick=Nick},name=Name,args=Args}) ->
-    to_list(Cmd#irc_cmd.source) ++ " "
-        ++ irc_numerics:atom_to_numeric(Name) ++ " "
-        ++ Nick ++ " "
-        ++ to_list(Name, Args, Cmd) ++ "\r\n";
+to_list(Cmd = #irc_cmd{source=#irc_server{},
+                       target=Nick}) when is_list(Nick) ->
+    to_list(Cmd#irc_cmd{target=#user{nick=Nick}});
+to_list(Cmd = #irc_cmd{source=#irc_server{},
+                       target=#user{nick=Nick},
+                       name=Name,
+                       args=Args}) ->
+    case irc_numerics:atom_to_numeric(Name) of
+        atom_not_numeric -> to_list(Name, Args, Cmd) ++ "\r\n";
+        Numeric ->
+            to_list(Cmd#irc_cmd.source) ++ " "
+                ++ Numeric ++ " "
+                ++ Nick ++ " "
+                ++ to_list(Name, Args, Cmd) ++ "\r\n"
+    end;
 to_list(Cmd = #irc_cmd{}) ->
     to_list(Cmd#irc_cmd.name, Cmd#irc_cmd.args, Cmd) ++ "\r\n";
 to_list(#user{} = User) ->
@@ -423,6 +439,16 @@ to_list(join, Args, _cmd) ->
          end,
     lists:flatten(["JOIN ", Cs]);
 
+to_list(namreply, Args, _Cmd) ->
+    Chan = proplists:get_value(channel,Args),
+    Members = proplists:get_value(members,Args),
+    Type = proplists:get_value(channel_type,Args),
+    MemberList = [ lists:flatten([user_role_to_list(Role), Nick])
+                   || {Nick, Role} <- Members ],
+    lists:flatten([chantype_to_list(Type), " ", Chan, " :" |
+                   string:join(MemberList, " ")]);
+                   
+
 to_list(Name, [{message, M}],
         #irc_cmd{target=T, ctcp = undefined}) when Name == notice;
                                                    Name == privmsg ->
@@ -458,27 +484,26 @@ to_list(user, Args, _Cmd) ->
     RealName = proplists:get_value(real_name, Args, "Erlang Hacker"),
     lists:flatten(["USER ", Name, " ", Mode, " * :", RealName]);
 
-to_list(welcome, [], Cmd = #irc_cmd{target=User}) ->
-    numeric_to_list(welcome, Cmd,
-                    ":Welcome to the Internet Relay Network ~s", [to_list(User)]);
-to_list(welcome, [{message, Msg}], Cmd) ->
-    numeric_to_list(welcome, Cmd, Msg, []);
+to_list(welcome, [], #irc_cmd{target=User}) ->
+    flatformat(":Welcome to the Internet Relay Network ~s", [to_list(User)]);
+to_list(welcome, [{message, Msg}], _Cmd) ->
+    ":\"" ++ Msg ++ "\"";
 
-to_list(yourhost, Args, Cmd = #irc_cmd{source=Server}) ->
+to_list(yourhost, Args, #irc_cmd{source=Server}) ->
     Host = proplists:get_value(host, Args, Server#irc_server.host),
     Version = proplists:get_value(version, Args, ?ERLIRC_VERSION),
-    numeric_to_list(yourhost, Cmd, ":Your host is ~s, running version ~s", [Host, Version]);
+    flatformat(":Your host is ~s, running version ~s", [Host, Version]);
 
-to_list(created, Args, Cmd) ->
+to_list(created, Args, _Cmd) ->
     Date = proplists:get_value(created, Args, erlang:universaltime()),
-    numeric_to_list(created, Cmd, ":This server was created ~s", [iso_8601_fmt(Date)]);
+    flatformat(":This server was created ~s", [iso_8601_fmt(Date)]);
 
-to_list(myinfo, Args, Cmd = #irc_cmd{source=Server}) ->
+to_list(myinfo, Args, #irc_cmd{source=Server}) ->
     Host = proplists:get_value(host, Args, Server#irc_server.host),
     Version = proplists:get_value(version, Args, ?ERLIRC_VERSION),
     UModes = proplists:get_value(usermodes, Args, "aios"), % XXX - the bare minumum?
     CModes = proplists:get_value(channelmodes, Args, "biklImnoPstv"), % XXX - pure lies?
-    numeric_to_list(myinfo, Cmd, "~s ~s ~s ~s", [Host, Version, UModes, CModes]);
+    flatformat("~s ~s ~s ~s", [Host, Version, UModes, CModes]);
 
 to_list(topicinfo, Args, #irc_cmd{source=#user{nick=Nick}}) ->
     Author = proplists:get_value(topic_set_by, Args),
@@ -495,10 +520,10 @@ to_list(PingPong, [{servers, {S1, ""}}], _Cmd) when PingPong =:= ping; PingPong 
 to_list(PingPong, [{servers, {S1, S2}}], _Cmd) when PingPong =:= ping; PingPong =:= pong ->
     string:to_upper(atom_to_list(PingPong)) ++ " " ++ S1 ++ " " ++ S2;
 
-to_list(unknowncommand, Args, Cmd = #irc_cmd{source=_Server}) ->
+to_list(unknowncommand, Args, #irc_cmd{source=_Server}) ->
     UnknownCommand = proplists:get_value(command, Args, unknowncommand),
     Message = proplists:get_value(message, Args, "Unknown command"),
-    numeric_to_list(unknowncommand, Cmd, "~s :~s", [string:to_upper(atom_to_list(UnknownCommand)), Message]);
+    flatformat("~s :~s", [string:to_upper(atom_to_list(UnknownCommand)), Message]);
 
 to_list(error, [{message, Msg}], _Cmd) ->
     "ERROR :" ++ Msg;
@@ -506,7 +531,7 @@ to_list(error, [{message, Msg}], _Cmd) ->
 %% Catchall for simple messages.
 to_list(CmdName, [{numeric, true}], _Cmd) ->
     irc_numerics:atom_to_numeric(CmdName);
-to_list(CmdName, [{message, Msg}], _Cmd) ->
+to_list(_CmdName, [{message, Msg}], _Cmd) ->
     ":" ++ Msg;
 to_list(CmdName, [], _Cmd) ->
     ":" ++ string:to_upper(atom_to_list(CmdName)).
@@ -576,3 +601,7 @@ nick(#user{}) ->
 nick(N) when is_list(N) ->
     N.
 
+user_role_to_list(op) -> "@";
+user_role_to_list(halfop) -> "%";
+user_role_to_list(voice) -> "+";
+user_role_to_list(user) -> "".

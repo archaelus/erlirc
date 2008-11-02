@@ -15,7 +15,10 @@
                        ,to_list/1
                        ,decode_ctcp_delims/1
                        ,encode_ctcp_delims/1
-                       ,unix_ts_to_datetime/1]).
+                       ,unix_ts_to_datetime/1
+                       ,chantype_to_list/1
+                       ,list_to_chantype/1
+                      ]).
 
 irc_error_test() ->
     ?assertMatch(#irc_cmd{name=error},
@@ -50,8 +53,8 @@ ctcp_version_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
                  parse_line(":freenode-connect!freenode@freenode/bot/connect PRIVMSG nemerling :^AVERSION^A")).
 namreply_test() ->
-    ?assertMatch(X when is_record(X, irc_cmd),
-                 parse_line(":ve.irc.dollyfish.net.nz 353 nembot = #dullbots :nembot @nem\r\n")).
+    ?assertMatch(":ve.irc.dollyfish.net.nz 353 nembot = #dullbots :nembot @nem\r\n",
+                 to_list(parse_line(":ve.irc.dollyfish.net.nz 353 nembot = #dullbots :nembot @nem\r\n"))).
 
 endofnames_test() ->
     ?assertMatch(X when is_record(X, irc_cmd),
@@ -152,6 +155,12 @@ nomotd_to_list_test() ->
                                   name=nomotd,
                                   args=[{message, "No MOTD"}]})).
     
+
+chantypes_test() ->
+    ?assert(lists:all(fun (T) ->
+                              T =:= list_to_chantype(chantype_to_list(T))
+                      end,
+                      [secret, public, private])).
 
 %numreply_test() ->
 %    ?assertMatch(Num when Num > 0, string:str(to_list(#irc_cmd{name=notregistered,}))).
