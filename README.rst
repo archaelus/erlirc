@@ -8,7 +8,11 @@ bots in Erlang.
 Example Use
 ===========
 
-Run ``erl -name erlirc -pa ebin`` and run the following commands::
+IRC Server
+----------
+
+Run ``erl -name erlirc -pa ebin`` and run the following commands in
+the erlang shell::
 
   (erlirc@bete.ran)1> irc_app:start().
   <SASL reports snipped>
@@ -25,3 +29,26 @@ IRC commands::
   NICK test
   USER test test localhost :Test User
   JOIN :#test
+
+IRC Client
+----------
+
+Run ``erl -name client -pa ebin`` and run the following commands in
+the erlang shell::
+
+  (erlirc@bete.ran)1> {ok, C} = irc_client_fsm:start_link("erlirc","localhost", 16667).
+  {ok,<0.61.0>}
+  =INFO REPORT==== 7-Nov-2008::17:54:26 ===
+  (<0.61.0> irc_client_fsm:149) :localhost 001 erlirc :Welcome to the Internet Relay Network erlirc!erlirc@127.0.0.1
+  =INFO REPORT==== 7-Nov-2008::17:54:26 ===
+  (<0.61.0> irc_client_fsm:157) :localhost 002 erlirc :Your host is localhost, running version erlirc-0.1
+  =INFO REPORT==== 7-Nov-2008::17:54:26 ===
+  (<0.61.0> irc_client_fsm:157) :localhost 003 erlirc :This server was created 2008-11-07T16:54:26+00
+  =INFO REPORT==== 7-Nov-2008::17:54:26 ===
+  (<0.61.0> irc_client_fsm:157) :localhost 004 erlirc localhost erlirc-0.1 aios biklImnoPstv
+  =INFO REPORT==== 7-Nov-2008::17:54:26 ===
+  (<0.61.0> irc_client_fsm:153) :localhost 422 erlirc :NOMOTD
+  
+
+Note that the erlirc server and client don't quite agree enough at the
+moment to successfully join channels.
