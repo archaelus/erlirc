@@ -9,7 +9,7 @@
 
 -include_lib("irc.hrl").
 -include_lib("logging.hrl").
--include_lib("eunit.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -import(irc_messages, [parse_line/1
                        ,to_list/1

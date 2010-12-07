@@ -7,7 +7,7 @@
 %%%-------------------------------------------------------------------
 -module(irc_channel_tests).
 
--include_lib("eunit.hrl").
+-include_lib("eunit/include/eunit.hrl").
 -include_lib("logging.hrl").
 
 channel_test() ->

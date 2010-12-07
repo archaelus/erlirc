@@ -7,7 +7,7 @@
 
 -include_lib("irc.hrl").
 -include_lib("logging.hrl").
--include_lib("eunit.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -export([numeric_to_atom/1,
          atom_to_numeric/1,
