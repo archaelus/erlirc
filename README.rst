@@ -17,7 +17,7 @@ Example Use
 IRC Server
 ----------
 
-Run ``erl -name erlirc -pa ebin`` and run the following commands in
+Run ``erl -name erlirc -env ERL_LIBS _build/default/lib`` and run the following commands in
 the erlang shell::
 
   (erlirc@bete.ran)1> irc_app:start().
@@ -39,7 +39,7 @@ IRC commands::
 IRC Client
 ----------
 
-Run ``erl -name client -pa ebin`` and run the following commands in
+Run ``erl -name client -env ERL_LIBS _build/default/lib`` and run the following commands in
 the erlang shell::
 
   (erlirc@bete.ran)1> {ok, C} = irc_client_fsm:start_link("erlirc","localhost", 16667).
