@@ -1,0 +1,7 @@
+{application, erlirc,
+ [{description, "Erlang IRC Library"},
+  {vsn, "0.1"},
+  {applications, [kernel, stdlib, sasl]},
+  {mod, {irc_app, []}},
+  {registered, [irc_sup]}
+ ]}.

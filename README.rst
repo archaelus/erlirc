@@ -5,13 +5,19 @@ ErlIRC - An Internet Relay Chat framework  for Erlang
 ErlIRC is a framework for writing IRC clients, servers, proxies and
 bots in Erlang.
 
+Building ErlIRC
+===============
+
+* Download and install `Rebar3 <https://github.com/rebar/rebar3>`_.
+* ``rebar3 build``
+
 Example Use
 ===========
 
 IRC Server
 ----------
 
-Run ``erl -name erlirc -pa ebin`` and run the following commands in
+Run ``erl -name erlirc -env ERL_LIBS _build/default/lib`` and run the following commands in
 the erlang shell::
 
   (erlirc@bete.ran)1> irc_app:start().
@@ -33,7 +39,7 @@ IRC commands::
 IRC Client
 ----------
 
-Run ``erl -name client -pa ebin`` and run the following commands in
+Run ``erl -name client -env ERL_LIBS _build/default/lib`` and run the following commands in
 the erlang shell::
 
   (erlirc@bete.ran)1> {ok, C} = irc_client_fsm:start_link("erlirc","localhost", 16667).
