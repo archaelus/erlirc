@@ -9,7 +9,7 @@ Building ErlIRC
 ===============
 
 * Download and install `Rebar3 <https://github.com/rebar/rebar3>`_.
-* ``rebar3 build``
+* ``rebar3 compile``
 
 Example Use
 ===========
